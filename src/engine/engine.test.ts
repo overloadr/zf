@@ -260,6 +260,61 @@ describe('stats', () => {
     expect(li.pointsLost).toBe(8)
     expect(stats.racks).toBe(2)
   })
+
+  it('tracks current and max rack win/lose streaks', () => {
+    const s0 = two()
+    const a = s0.players[0]!
+    const b = s0.players[1]!
+    const w1 = applyAction(s0, { kind: 'win', winType: 'normal', playerId: a.id }, 2)
+    const w2 = applyAction(w1.state, { kind: 'win', winType: 'normal', playerId: a.id }, 3)
+    const w3 = applyAction(w2.state, { kind: 'win', winType: 'normal', playerId: a.id }, 4)
+    const w4 = applyAction(w3.state, { kind: 'win', winType: 'normal', playerId: b.id }, 5)
+    const events = [w1, w2, w3, w4].map(eventFrom)
+    const stats = computeMatchStats(w4.state, events)
+    const jia = stats.players.find((p) => p.name === '甲')!
+    const yi = stats.players.find((p) => p.name === '乙')!
+    expect(jia.maxWinStreak).toBe(3)
+    expect(jia.currentWinStreak).toBe(0)
+    expect(jia.currentLoseStreak).toBe(1)
+    expect(yi.maxLoseStreak).toBe(3)
+    expect(yi.currentLoseStreak).toBe(0)
+    expect(yi.currentWinStreak).toBe(1)
+  })
+
+  it('leaves streak unchanged when a player neither won nor paid', () => {
+    const s0 = three()
+    const zhang = s0.players.find((p) => p.name === '张三')!
+    const w1 = applyAction(s0, { kind: 'win', winType: 'normal', playerId: zhang.id }, 2)
+    const w2 = applyAction(w1.state, { kind: 'win', winType: 'normal', playerId: zhang.id }, 3)
+    const events = [w1, w2].map(eventFrom)
+    const stats = computeMatchStats(w2.state, events)
+    const wang = stats.players.find((p) => p.name === '王五')!
+    const li = stats.players.find((p) => p.name === '李四')!
+    const zhangStats = stats.players.find((p) => p.name === '张三')!
+    expect(zhangStats.currentWinStreak).toBe(2)
+    expect(wang.currentLoseStreak).toBe(1)
+    expect(wang.currentWinStreak).toBe(0)
+    expect(li.currentLoseStreak).toBe(1)
+    expect(li.currentWinStreak).toBe(0)
+  })
+
+  it('counts a foul as a loss for the fouler and a win for the receiver', () => {
+    const s0 = two()
+    const a = s0.players[0]!
+    const w1 = applyAction(s0, { kind: 'win', winType: 'normal', playerId: a.id }, 2)
+    const w2 = applyAction(w1.state, { kind: 'win', winType: 'normal', playerId: a.id }, 3)
+    const f = applyAction(w2.state, { kind: 'foul', foulType: 'normal', playerId: a.id }, 4)
+    const events = [w1, w2, f].map(eventFrom)
+    const stats = computeMatchStats(f.state, events)
+    const jia = stats.players.find((p) => p.name === '甲')!
+    const yi = stats.players.find((p) => p.name === '乙')!
+    expect(jia.maxWinStreak).toBe(2)
+    expect(jia.currentWinStreak).toBe(0)
+    expect(jia.currentLoseStreak).toBe(1)
+    expect(yi.maxLoseStreak).toBe(2)
+    expect(yi.currentLoseStreak).toBe(0)
+    expect(yi.currentWinStreak).toBe(1)
+  })
 })
 
 describe('ended match', () => {

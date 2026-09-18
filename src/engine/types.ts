@@ -109,6 +109,10 @@ export interface PlayerStats {
   pointsLost: number
   biggestWin: number
   racksPlayed: number
+  currentWinStreak: number
+  currentLoseStreak: number
+  maxWinStreak: number
+  maxLoseStreak: number
 }
 
 export interface MatchStats {

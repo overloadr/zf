@@ -37,7 +37,23 @@ export function emptyPlayerStats(playerId: string, name: string, score = 0): Pla
     pointsLost: 0,
     biggestWin: 0,
     racksPlayed: 0,
+    currentWinStreak: 0,
+    currentLoseStreak: 0,
+    maxWinStreak: 0,
+    maxLoseStreak: 0,
   }
+}
+
+function markWin(player: PlayerStats): void {
+  player.currentWinStreak += 1
+  player.currentLoseStreak = 0
+  player.maxWinStreak = Math.max(player.maxWinStreak, player.currentWinStreak)
+}
+
+function markLoss(player: PlayerStats): void {
+  player.currentLoseStreak += 1
+  player.currentWinStreak = 0
+  player.maxLoseStreak = Math.max(player.maxLoseStreak, player.currentLoseStreak)
 }
 
 export function computeMatchStats(state: MatchState, events: MatchEvent[]): MatchStats {
@@ -54,6 +70,7 @@ export function computeMatchStats(state: MatchState, events: MatchEvent[]): Matc
         winner.pointsWon += event.amount ?? 0
         winner.biggestWin = Math.max(winner.biggestWin, event.amount ?? 0)
         winner.racksPlayed += 1
+        markWin(winner)
       }
       const pays =
         event.payments && event.payments.length > 0
@@ -66,6 +83,7 @@ export function computeMatchStats(state: MatchState, events: MatchEvent[]): Matc
         if (loser) {
           loser.pointsLost += pay.amount
           if (isConcessionWinType(event.action.winType)) loser.concessionsGiven += 1
+          markLoss(loser)
         }
       }
     } else if (event.action.kind === 'foul') {
@@ -75,9 +93,13 @@ export function computeMatchStats(state: MatchState, events: MatchEvent[]): Matc
         fouler.fouls[event.action.foulType] += 1
         fouler.racksPlayed += 1
         fouler.pointsLost += event.amount ?? 0
+        markLoss(fouler)
       }
       const receiver = byId.get(event.winnerId ?? '')
-      if (receiver) receiver.pointsWon += event.amount ?? 0
+      if (receiver) {
+        receiver.pointsWon += event.amount ?? 0
+        markWin(receiver)
+      }
     }
   }
   return {

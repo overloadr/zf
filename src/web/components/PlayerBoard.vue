@@ -8,15 +8,24 @@
       :class="{
         selected: selectedId === card.player.id,
         shooting: card.shooting,
+        hot: card.streak?.kind === 'hot',
+        cold: card.streak?.kind === 'cold',
+        [`streak-${card.streak?.level}`]: !!card.streak,
       }"
       @click="pick(card.player.id)"
     >
+      <div v-if="card.streak" class="fx" :class="card.streak.kind" aria-hidden="true">
+        <i></i><i></i><i></i><i></i>
+      </div>
       <div class="who">{{ card.player.name }}</div>
       <div class="info">
         <div class="name-row">
           <span class="tag" :class="card.tag">{{ card.cue }}</span>
           <span v-if="card.shooting" class="live">击球</span>
           <span v-if="selectedId === card.player.id" class="picked">已选</span>
+          <span v-if="card.streak" class="streak" :class="card.streak.kind">
+            {{ card.streak.label }}
+          </span>
         </div>
         <div class="stats">
           <span>普胜 {{ card.stats.wins.normal }}</span>
@@ -53,6 +62,7 @@ import {
   seatedPlayers,
   type MatchEvent,
   type MatchState,
+  type PlayerStats,
 } from '@engine'
 
 const props = defineProps<{
@@ -86,15 +96,42 @@ const cards = computed(() => {
   const shooter = currentShooter(state)
   return seatedPlayers(state).map((player) => {
     const tag = cueTag(state, player.id)
+    const stats = statsById.value.get(player.id) ?? emptyPlayerStats(player.id, player.name, player.score)
     return {
       player,
       tag,
       cue: CUE_LABELS[tag],
       shooting: player.id === shooter.id,
-      stats: statsById.value.get(player.id) ?? emptyPlayerStats(player.id, player.name, player.score),
+      stats,
+      streak: streakOf(stats),
     }
   })
 })
+
+function streakLevel(n: number) {
+  if (n >= 5) return 5
+  if (n >= 3) return 3
+  if (n >= 2) return 2
+  return 0
+}
+
+function streakOf(stats: PlayerStats) {
+  if (stats.currentWinStreak >= 2) {
+    return {
+      kind: 'hot' as const,
+      level: streakLevel(stats.currentWinStreak),
+      label: `连胜 ${stats.currentWinStreak}`,
+    }
+  }
+  if (stats.currentLoseStreak >= 2) {
+    return {
+      kind: 'cold' as const,
+      level: streakLevel(stats.currentLoseStreak),
+      label: `连败 ${stats.currentLoseStreak}`,
+    }
+  }
+  return null
+}
 
 function signed(n: number) {
   const s = formatAmount(n)
@@ -126,14 +163,67 @@ function signed(n: number) {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 .person.shooting {
   border-color: rgba(230, 195, 106, 0.28);
+}
+.person.hot {
+  border-color: rgba(255, 156, 64, 0.55);
+  background: linear-gradient(180deg, rgba(255, 110, 28, 0.28), rgba(12, 32, 22, 0.62));
+}
+.person.hot.streak-3 {
+  border-color: rgba(255, 176, 72, 0.72);
+}
+.person.hot.streak-5 {
+  border-color: rgba(255, 210, 110, 0.9);
+}
+.person.cold {
+  border-color: rgba(126, 176, 216, 0.42);
+  background: linear-gradient(180deg, rgba(64, 108, 152, 0.24), rgba(8, 16, 22, 0.74));
+}
+.person.cold.streak-3,
+.person.cold.streak-5 {
+  border-color: rgba(156, 198, 236, 0.58);
+}
+.person.hot::before,
+.person.cold::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+.person.hot::before {
+  box-shadow: inset 0 0 28px rgba(255, 120, 24, 0.3);
+  animation: hotIn 1.6s ease-in-out infinite;
+}
+.person.hot.streak-5::before {
+  box-shadow: inset 0 0 36px rgba(255, 90, 8, 0.42);
+}
+.person.cold::before {
+  box-shadow: inset 0 0 26px rgba(80, 140, 200, 0.26);
+  animation: coldIn 2.2s ease-in-out infinite;
 }
 .person.selected {
   border-color: var(--gold);
   background: linear-gradient(180deg, rgba(230, 195, 106, 0.28), rgba(12, 32, 22, 0.62));
   box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.45);
+}
+.person.selected.hot {
+  box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.45), 0 0 22px rgba(255, 120, 40, 0.4);
+}
+.person.selected.cold {
+  box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.45), 0 0 16px rgba(90, 140, 190, 0.32);
+}
+.who,
+.info,
+.score-col {
+  position: relative;
+  z-index: 1;
 }
 .who {
   font-size: 22px;
@@ -223,5 +313,91 @@ function signed(n: number) {
   color: var(--muted);
   padding: 6px 4px;
   pointer-events: auto;
+}
+.streak {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.streak.hot {
+  color: #1b1404;
+  background: linear-gradient(180deg, #ffe08a, #ff9a3c);
+  box-shadow: 0 0 10px rgba(255, 150, 50, 0.45);
+  animation: badgeGlow 1.2s ease-in-out infinite;
+}
+.streak.cold {
+  color: #d7eaff;
+  background: linear-gradient(180deg, rgba(96, 148, 198, 0.7), rgba(40, 72, 112, 0.82));
+}
+.fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.fx i {
+  position: absolute;
+  display: block;
+  opacity: 0;
+}
+.fx.hot i {
+  bottom: -8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe08a 0%, #ff7a2a 62%, transparent 72%);
+  animation: spark 1.8s ease-out infinite;
+}
+.fx.hot i:nth-child(1) { left: 16%; animation-delay: 0s; }
+.fx.hot i:nth-child(2) { left: 38%; width: 5px; height: 5px; animation-delay: 0.35s; }
+.fx.hot i:nth-child(3) { left: 61%; animation-delay: 0.7s; }
+.fx.hot i:nth-child(4) { left: 82%; width: 4px; height: 4px; animation-delay: 1.05s; }
+.fx.cold i {
+  top: -8px;
+  width: 4px;
+  height: 9px;
+  border-radius: 40%;
+  background: linear-gradient(180deg, rgba(220, 240, 255, 0.95), rgba(140, 190, 230, 0.08));
+  animation: flake 2.4s linear infinite;
+}
+.fx.cold i:nth-child(1) { left: 18%; animation-delay: 0s; }
+.fx.cold i:nth-child(2) { left: 40%; animation-delay: 0.5s; height: 7px; }
+.fx.cold i:nth-child(3) { left: 63%; animation-delay: 1s; }
+.fx.cold i:nth-child(4) { left: 84%; animation-delay: 1.5s; height: 6px; }
+@keyframes hotIn {
+  0%, 100% { box-shadow: inset 0 0 16px rgba(255, 120, 24, 0.18); }
+  50% { box-shadow: inset 0 0 36px rgba(255, 80, 8, 0.42); }
+}
+@keyframes coldIn {
+  0%, 100% { box-shadow: inset 0 0 16px rgba(80, 140, 200, 0.16); }
+  50% { box-shadow: inset 0 0 30px rgba(120, 180, 230, 0.32); }
+}
+@keyframes badgeGlow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.16); }
+}
+@keyframes spark {
+  0% { transform: translateY(0) scale(0.55); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: translateY(-92px) scale(1.12); opacity: 0; }
+}
+@keyframes flake {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  12% { opacity: 0.85; }
+  100% { transform: translateY(100px) rotate(48deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .person.hot::before,
+  .person.cold::before,
+  .streak.hot,
+  .fx i {
+    animation: none;
+  }
+  .fx i { opacity: 0; }
 }
 </style>

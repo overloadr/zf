@@ -16,6 +16,10 @@
         </span>
       </div>
       <p class="muted">击球 {{ p.racksPlayed }} 局 · 最大单杆 {{ p.biggestWin }}</p>
+      <p class="muted">
+        当前连胜 {{ p.currentWinStreak }} · 最长连胜 {{ p.maxWinStreak }} ·
+        当前连败 {{ p.currentLoseStreak }} · 最长连败 {{ p.maxLoseStreak }}
+      </p>
       <div class="chips">
         <span>普胜 {{ p.wins.normal }}</span>
         <span>小金 {{ p.wins.smallGold }}</span>
