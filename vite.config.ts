@@ -16,7 +16,7 @@ export default defineConfig({
       manifest: {
         name: '追分记分',
         short_name: '追分',
-        description: '台球追分记分，支持双人/三人追分和中8抢局',
+        description: '台球追分记分，支持双人/三人追分和中八抢局',
         theme_color: '#0c1a12',
         background_color: '#07140e',
         display: 'standalone',

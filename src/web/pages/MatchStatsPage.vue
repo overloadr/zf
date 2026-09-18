@@ -61,7 +61,7 @@ onMounted(async () => {
 const eight = computed(() => stats.value?.mode === 'eight')
 const kindLine = computed(() => {
   if (!stats.value) return ''
-  return stats.value.mode === 'eight' ? `中8 抢${stats.value.raceTo ?? 7}` : '追分'
+  return stats.value.mode === 'eight' ? `中八 抢${stats.value.raceTo ?? 7}` : '追分'
 })
 
 function displayScore(n: number) {

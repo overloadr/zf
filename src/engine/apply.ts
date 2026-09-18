@@ -62,7 +62,7 @@ export function createMatchState(opts: {
   const mode: MatchMode = opts.mode === 'eight' ? 'eight' : 'chase'
   const count = opts.names.length
   if (mode === 'eight') {
-    if (count !== 2) throw new RuleError('中8模式为双人')
+    if (count !== 2) throw new RuleError('中八模式为双人')
   } else if (count !== 2 && count !== 3) {
     throw new RuleError('只支持 2 人或 3 人追分')
   }
@@ -175,12 +175,12 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
 
 function previewEightWin(state: MatchState, winType: WinType, playerId?: string): WinPreview {
   if (!isEightWinType(winType)) {
-    throw new RuleError('中8只记普胜、接清、炸清')
+    throw new RuleError('中八只记普胜、接清、炸清')
   }
   const actorId = playerId ?? currentShooter(state).id
   const { ben } = getRoles(state, actorId)
   const opponent = others(state, ben.id)[0]
-  if (!opponent) throw new RuleError('中8需要两名玩家')
+  if (!opponent) throw new RuleError('中八需要两名玩家')
   const raceTo = state.raceTo ?? DEFAULT_RACE_TO
   const winnerRacks = ben.score + 1
   return {
@@ -206,7 +206,7 @@ export function previewFoul(
 ): FoulPreview {
   requireLive(state)
   const live = hydrateState(state)
-  if (isEightMode(live)) throw new RuleError('中8不记犯规分')
+  if (isEightMode(live)) throw new RuleError('中八不记犯规分')
   const actorId = playerId ?? currentShooter(live).id
   const { shang, ben, xia } = getRoles(live, actorId)
   const concessionFoul = live.concessionActive || foulType === 'concession'
@@ -306,7 +306,7 @@ export function applyAction(
       }
     }
     case 'startConcession': {
-      if (isEightMode(next)) throw new RuleError('中8没有让杆')
+      if (isEightMode(next)) throw new RuleError('中八没有让杆')
       if (state.concessionActive) throw new RuleError('已经在让杆中')
       const live = hydrateState(state)
       const shooter = currentShooter(live)

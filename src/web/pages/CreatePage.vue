@@ -3,13 +3,13 @@
     <header class="topbar">
       <button class="btn btn-ghost" @click="$router.back()">返回</button>
       <h1>开新局</h1>
-      <span style="width: 64px"></span>
+      <span></span>
     </header>
 
     <div class="segment triple">
       <button :class="{ active: kind === 'chase2' }" @click="kind = 'chase2'">2 人追分</button>
       <button :class="{ active: kind === 'chase3' }" @click="kind = 'chase3'">3 人追分</button>
-      <button :class="{ active: kind === 'eight' }" @click="kind = 'eight'">中8</button>
+      <button :class="{ active: kind === 'eight' }" @click="kind = 'eight'">中八</button>
     </div>
 
     <div class="field" v-for="(name, i) in names" :key="i">
@@ -130,6 +130,21 @@ async function submit() {
 </script>
 
 <style scoped>
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+}
+.topbar h1 {
+  text-align: center;
+}
+.topbar > :first-child {
+  justify-self: start;
+}
+.topbar > :last-child {
+  justify-self: end;
+  width: auto;
+}
 .linkish {
   background: none;
   color: var(--gold);
@@ -154,12 +169,14 @@ async function submit() {
   margin-bottom: 16px;
 }
 .segment.triple {
-  grid-template-columns: 1.15fr 1.15fr 0.7fr;
+  grid-template-columns: 1fr 1fr 1fr;
 }
 .segment.triple button {
+  min-width: 0;
+  padding: 0 4px;
   font-size: 14px;
   letter-spacing: 0;
-  padding: 0 4px;
+  white-space: nowrap;
 }
 .segment.race {
   grid-template-columns: repeat(5, 1fr);

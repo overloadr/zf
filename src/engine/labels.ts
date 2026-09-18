@@ -42,6 +42,6 @@ export function seatLabel(playerCount: 2 | 3, seat: number): string {
 }
 
 export function matchKindLabel(state: Pick<MatchState, 'mode' | 'playerCount' | 'raceTo'>): string {
-  if (state.mode === 'eight') return `中8 · 抢${state.raceTo ?? 7}`
+  if (state.mode === 'eight') return `中八 · 抢${state.raceTo ?? 7}`
   return `${state.playerCount}人追分`
 }

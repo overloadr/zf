@@ -5,7 +5,7 @@
         <img class="brand-mark" src="/icon.svg" alt="" />
         <div>
           <h1>追分记分</h1>
-          <p class="sub">双人 / 三人 / 中8 · 多端实时同步</p>
+          <p class="sub">双人 / 三人 / 中八 · 多端实时同步</p>
         </div>
       </div>
     </header>

@@ -3,11 +3,11 @@
     <header class="topbar">
       <button class="btn btn-ghost" @click="$router.push('/')">大厅</button>
       <h1>历史场次</h1>
-      <span style="width: 64px"></span>
+      <span></span>
     </header>
 
     <div class="card filters">
-      <div class="grid-2">
+      <div class="dates">
         <div class="field">
           <label for="history-from">开始日期</label>
           <input id="history-from" v-model="fromDate" type="date" />
@@ -43,17 +43,22 @@
     <Sheet :open="!!pending" @close="closeDelete">
       <h3>删除比赛</h3>
       <p class="confirm-copy">
-        删除后不可恢复。请输入管理员账号密码，确认删除
-        <strong>{{ pending?.code }}</strong>。
+        删除后不可恢复。确认删除
+        <strong>{{ pending?.code }}</strong>
+        ？
+        <template v-if="needCreds">请输入管理员账号密码。</template>
+        <template v-else>30 分钟内无需再次输入账号密码。</template>
       </p>
-      <div class="field">
-        <label for="admin-user">管理员账号</label>
-        <input id="admin-user" v-model="username" autocomplete="username" />
-      </div>
-      <div class="field">
-        <label for="admin-pass">密码</label>
-        <input id="admin-pass" v-model="password" type="password" autocomplete="current-password" />
-      </div>
+      <template v-if="needCreds">
+        <div class="field">
+          <label for="admin-user">管理员账号</label>
+          <input id="admin-user" v-model="username" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="admin-pass">密码</label>
+          <input id="admin-pass" v-model="password" type="password" autocomplete="current-password" />
+        </div>
+      </template>
       <p v-if="deleteError" class="banner">{{ deleteError }}</p>
       <div class="grid-2">
         <button class="btn btn-ghost" type="button" @click="closeDelete">取消</button>
@@ -68,6 +73,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { formatAmount, matchKindLabel, type MatchState } from '@engine'
+import { clearAdminSession, readAdminSession, saveAdminSession } from '../adminSession.ts'
 import Sheet from '../components/Sheet.vue'
 import { ApiError, deleteMatch, listMatches } from '../api.ts'
 
@@ -77,8 +83,9 @@ const toDate = ref('')
 const loading = ref(false)
 const error = ref('')
 const pending = ref<MatchState | null>(null)
-const username = ref(sessionStorage.getItem('zf-admin-user') ?? '')
+const username = ref('')
 const password = ref('')
+const needCreds = ref(true)
 const deleting = ref(false)
 const deleteError = ref('')
 
@@ -125,6 +132,15 @@ function resetRange() {
 function openDelete(match: MatchState) {
   pending.value = match
   deleteError.value = ''
+  const session = readAdminSession()
+  if (session) {
+    username.value = session.username
+    password.value = session.password
+    needCreds.value = false
+    return
+  }
+  needCreds.value = true
+  username.value = ''
   password.value = ''
 }
 
@@ -140,13 +156,18 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await deleteMatch(pending.value.code, username.value, password.value)
-    sessionStorage.setItem('zf-admin-user', username.value.trim())
+    saveAdminSession(username.value, password.value)
     const code = pending.value.code
     pending.value = null
-    password.value = ''
     matches.value = matches.value.filter((m) => m.code !== code)
   } catch (err) {
-    deleteError.value = err instanceof ApiError || err instanceof Error ? err.message : '删除失败'
+    const message = err instanceof ApiError || err instanceof Error ? err.message : '删除失败'
+    deleteError.value = message
+    if (err instanceof ApiError && err.status === 401) {
+      clearAdminSession()
+      needCreds.value = true
+      password.value = ''
+    }
   } finally {
     deleting.value = false
   }
@@ -178,7 +199,12 @@ function when(at: number) {
   padding: 14px 14px 4px;
   margin-bottom: 8px;
 }
-.filters .field {
+.dates {
+  display: grid;
+  gap: 4px;
+}
+.dates .field {
+  min-width: 0;
   margin-bottom: 10px;
 }
 .filters .grid-2 {
