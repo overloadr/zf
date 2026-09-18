@@ -30,10 +30,6 @@
     </div>
 
     <template v-if="kind === 'eight'">
-      <div class="card legend">
-        <h2>抢 {{ raceTo }} 局</h2>
-        <p>普胜 · 接清 · 炸清 各计 1 局，先到 {{ raceTo }} 局获胜。胜者开下一局。</p>
-      </div>
       <div class="field">
         <label>抢多少局</label>
         <div class="segment race">
@@ -53,6 +49,15 @@
       </div>
     </template>
 
+    <p v-if="error" class="banner">{{ error }}</p>
+    <button class="btn btn-gold btn-block start-btn" :disabled="busy" @click="submit">开始记分</button>
+
+    <template v-if="kind === 'eight'">
+      <div class="card legend">
+        <h2>抢 {{ raceTo }} 局</h2>
+        <p>普胜 · 接清 · 炸清 各计 1 局，先到 {{ raceTo }} 局获胜。胜者开下一局。</p>
+      </div>
+    </template>
     <template v-else>
       <div class="card legend">
         <h2>固定分（1-4-7-10）</h2>
@@ -61,7 +66,6 @@
           普胜/小金赢上家；大金、黄金九三人时两家各赔。让杆普胜、让杆小金由下家双倍赔。普通犯规赔上家 1 分，让杆犯规赔下家 1 分。小局赢后赢家开大杆，上局输家变二杆。
         </p>
       </div>
-
       <button class="linkish" type="button" @click="advanced = !advanced">
         {{ advanced ? '收起分值' : '自定义分值' }}
       </button>
@@ -72,9 +76,6 @@
         </div>
       </div>
     </template>
-
-    <p v-if="error" class="banner">{{ error }}</p>
-    <button class="btn btn-gold btn-block" :disabled="busy" @click="submit">开始记分</button>
   </div>
 </template>
 
@@ -201,5 +202,8 @@ async function submit() {
 }
 .sweep-hint {
   margin: 8px 0 0;
+}
+.start-btn {
+  margin: 10px 0 22px;
 }
 </style>
