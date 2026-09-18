@@ -25,7 +25,8 @@
           <span>黄金九 {{ card.stats.wins.goldenNine }}</span>
           <span>让杆普胜 {{ card.stats.wins.concession }}</span>
           <span>让杆小金 {{ card.stats.wins.concessionSmallGold }}</span>
-          <span>犯规 {{ card.stats.fouls.normal + card.stats.fouls.concession }}</span>
+          <span>普通犯规 {{ card.stats.fouls.normal }}</span>
+          <span>让杆犯规 {{ card.stats.fouls.concession }}</span>
           <span>让杆 {{ card.stats.concessionsGiven }}</span>
         </div>
       </div>

@@ -34,17 +34,23 @@
       </button>
     </div>
     <div class="row">
-      <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul')">
+      <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul', 'normal')">
         普通犯规
         <small>赔上家 {{ points.foul }}</small>
       </button>
-      <button class="btn btn-ghost" :disabled="!canUndo" @click="emit('undo')">撤销</button>
+      <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul', 'concession')">
+        让杆犯规
+        <small>赔下家 {{ points.foul }}</small>
+      </button>
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost span" :disabled="!canUndo" @click="emit('undo')">撤销</button>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import type { PointTable, WinType } from '@engine'
+import type { FoulType, PointTable, WinType } from '@engine'
 
 defineProps<{
   enabled: boolean
@@ -55,7 +61,7 @@ defineProps<{
 
 const emit = defineEmits<{
   win: [type: WinType]
-  foul: []
+  foul: [type: FoulType]
   undo: []
 }>()
 </script>
@@ -80,6 +86,9 @@ const emit = defineEmits<{
   grid-column: 1 / -1;
   min-height: 52px;
   font-size: 18px;
+}
+.span {
+  grid-column: 1 / -1;
 }
 .goldish,
 .btn-ok,

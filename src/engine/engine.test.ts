@@ -152,10 +152,24 @@ describe('3-player chase', () => {
     expect(event.summary).toContain('普通犯规')
   })
 
-  it('让杆犯规赔下家 1 分并取消让杆', () => {
+  it('让杆犯规直接赔下家 1 分', () => {
+    const s0 = three()
+    const preview = previewFoul(s0, undefined, 'concession')
+    expect(preview.foulType).toBe('concession')
+    expect(preview.receiverName).toBe('李四')
+    expect(preview.amount).toBe(1)
+    const { state, event } = applyAction(s0, { kind: 'foul', foulType: 'concession' }, 2)
+    expect(state.players.find((p) => p.name === '张三')?.score).toBe(-1)
+    expect(state.players.find((p) => p.name === '李四')?.score).toBe(1)
+    expect(state.players.find((p) => p.name === '王五')?.score).toBe(0)
+    expect(getRoles(state).ben.name).toBe('李四')
+    expect(event.summary).toContain('让杆犯规')
+  })
+
+  it('先让杆再犯规仍赔下家 1 分并取消让杆', () => {
     const s0 = three()
     const conceded = applyAction(s0, { kind: 'startConcession' }, 2).state
-    const { state, event } = applyAction(conceded, { kind: 'foul', foulType: 'normal' }, 3)
+    const { state, event } = applyAction(conceded, { kind: 'foul', foulType: 'concession' }, 3)
     expect(state.concessionActive).toBe(false)
     expect(state.players.find((p) => p.name === '张三')?.score).toBe(-1)
     expect(state.players.find((p) => p.name === '李四')?.score).toBe(1)
@@ -185,6 +199,14 @@ describe('2-player chase', () => {
     const { state } = applyAction(conceded, { kind: 'win', winType: 'concession' }, 3)
     expect(state.players.find((p) => p.name === '甲')?.score).toBe(8)
     expect(state.players.find((p) => p.name === '乙')?.score).toBe(-8)
+  })
+
+  it('让杆犯规赔对手 1 分', () => {
+    const s0 = two()
+    const { state, event } = applyAction(s0, { kind: 'foul', foulType: 'concession' }, 2)
+    expect(state.players.find((p) => p.name === '甲')?.score).toBe(-1)
+    expect(state.players.find((p) => p.name === '乙')?.score).toBe(1)
+    expect(event.summary).toContain('让杆犯规')
   })
 })
 
@@ -224,7 +246,7 @@ describe('stats', () => {
     const initial = three()
     const c = applyAction(initial, { kind: 'startConcession' }, 2)
     const w = applyAction(c.state, { kind: 'win', winType: 'concession' }, 3)
-    const f = applyAction(w.state, { kind: 'foul', foulType: 'normal' }, 4)
+    const f = applyAction(w.state, { kind: 'foul', foulType: 'concession' }, 4)
     const events = [eventFrom(c), eventFrom(w), eventFrom(f)]
     const stats = computeMatchStats(f.state, events)
     const zhang = stats.players.find((p) => p.name === '张三')!
@@ -232,7 +254,8 @@ describe('stats', () => {
     expect(zhang.wins.concession).toBe(1)
     expect(zhang.wins.concessionSmallGold ?? 0).toBe(0)
     expect(zhang.pointsWon).toBe(8)
-    expect(zhang.fouls.normal).toBe(1)
+    expect(zhang.fouls.concession).toBe(1)
+    expect(zhang.fouls.normal).toBe(0)
     expect(li.concessionsGiven).toBe(1)
     expect(li.pointsLost).toBe(8)
     expect(stats.racks).toBe(2)

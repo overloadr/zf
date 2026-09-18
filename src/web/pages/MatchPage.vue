@@ -101,6 +101,7 @@ import {
   previewWin,
   WIN_LABELS,
   type Action,
+  type FoulType,
   type WinType,
 } from '@engine'
 import ActionPad from '../components/ActionPad.vue'
@@ -200,9 +201,9 @@ function confirmWin() {
   void run({ kind: 'win', winType: pendingWin.value, playerId: selectedId.value })
 }
 
-function onFoul() {
+function onFoul(type: FoulType) {
   if (!selectedId.value) return
-  void run({ kind: 'foul', foulType: 'normal', playerId: selectedId.value })
+  void run({ kind: 'foul', foulType: type, playerId: selectedId.value })
 }
 
 function openRename(playerId: string) {

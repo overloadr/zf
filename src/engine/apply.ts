@@ -5,6 +5,7 @@ import type {
   Action,
   BaseWinType,
   FoulPreview,
+  FoulType,
   MatchEvent,
   MatchState,
   Payment,
@@ -144,16 +145,21 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
   }
 }
 
-export function previewFoul(state: MatchState, playerId?: string): FoulPreview {
+export function previewFoul(
+  state: MatchState,
+  playerId?: string,
+  foulType?: FoulType,
+): FoulPreview {
   requireLive(state)
   const live = hydrateState(state)
   const actorId = playerId ?? currentShooter(live).id
   const { shang, ben, xia } = getRoles(live, actorId)
-  const receiver = live.concessionActive
+  const concessionFoul = live.concessionActive || foulType === 'concession'
+  const receiver = concessionFoul
     ? live.players.find((p) => p.id === live.concessionFromId) ?? xia
     : shang
   return {
-    foulType: live.concessionActive ? 'concession' : 'normal',
+    foulType: concessionFoul ? 'concession' : 'normal',
     foulerId: ben.id,
     foulerName: ben.name,
     receiverId: receiver.id,
@@ -210,7 +216,7 @@ export function applyAction(
       }
     }
     case 'foul': {
-      const preview = previewFoul(state, action.playerId)
+      const preview = previewFoul(state, action.playerId, action.foulType)
       transfer(next, preview.receiverId, preview.foulerId, preview.amount)
       const order = orderedPlayers(next).map((p) => p.id)
       const idx = Math.max(0, order.indexOf(preview.foulerId))
