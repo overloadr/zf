@@ -6,5 +6,6 @@ data/
 *.db-shm
 .DS_Store
 .env
+config.json
 *.log
 .vite/

@@ -43,17 +43,36 @@ export class ConflictError extends RuleError {
   }
 }
 
+export type MatchListFilter = {
+  status?: 'live' | 'ended' | 'all'
+  from?: number
+  to?: number
+}
+
 export class MatchStore {
   constructor(private db: Database.Database) {}
 
-  list(status?: 'live' | 'ended' | 'all'): MatchState[] {
-    const rows =
-      !status || status === 'all'
-        ? this.db.prepare('SELECT snapshot FROM matches ORDER BY updated_at DESC').all()
-        : this.db
-            .prepare('SELECT snapshot FROM matches WHERE status = ? ORDER BY updated_at DESC')
-            .all(status)
-    return (rows as Array<{ snapshot: string }>).map((r) => parseState(r.snapshot))
+  list(filter: MatchListFilter | 'live' | 'ended' | 'all' = 'all'): MatchState[] {
+    const opts: MatchListFilter = typeof filter === 'string' ? { status: filter } : filter
+    const where: string[] = []
+    const params: unknown[] = []
+    if (opts.status && opts.status !== 'all') {
+      where.push('status = ?')
+      params.push(opts.status)
+    }
+    if (opts.from != null && Number.isFinite(opts.from)) {
+      where.push('updated_at >= ?')
+      params.push(opts.from)
+    }
+    if (opts.to != null && Number.isFinite(opts.to)) {
+      where.push('updated_at <= ?')
+      params.push(opts.to)
+    }
+    const sql = `SELECT snapshot FROM matches${
+      where.length ? ` WHERE ${where.join(' AND ')}` : ''
+    } ORDER BY updated_at DESC`
+    const rows = this.db.prepare(sql).all(...params) as Array<{ snapshot: string }>
+    return rows.map((r) => parseState(r.snapshot))
   }
 
   getByCode(code: string): MatchRecord | null {
@@ -89,7 +108,12 @@ export class MatchStore {
     }))
   }
 
-  create(input: { names: string[]; config?: Parameters<typeof createMatchState>[0]['config'] }): MatchState {
+  create(input: {
+    names: string[]
+    config?: Parameters<typeof createMatchState>[0]['config']
+    mode?: Parameters<typeof createMatchState>[0]['mode']
+    raceTo?: number
+  }): MatchState {
     const id = randomUUID()
     let code = makeCode()
     for (let i = 0; i < 20; i++) {
@@ -97,7 +121,14 @@ export class MatchStore {
       if (!exists) break
       code = makeCode()
     }
-    const state = createMatchState({ id, code, names: input.names, config: input.config })
+    const state = createMatchState({
+      id,
+      code,
+      names: input.names,
+      config: input.config,
+      mode: input.mode,
+      raceTo: input.raceTo,
+    })
     this.db
       .prepare(
         `INSERT INTO matches (id, code, player_count, status, initial_state, snapshot, created_at, updated_at)
@@ -175,5 +206,17 @@ export class MatchStore {
       } satisfies MatchRecord
     })
     return tx()
+  }
+
+  deleteEnded(code: string): MatchState {
+    const current = this.getByCode(code)
+    if (!current) throw new RuleError('找不到这场比赛')
+    if (current.state.status !== 'ended') throw new RuleError('只能删除已结束的比赛')
+    const run = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM events WHERE match_id = ?').run(current.state.id)
+      this.db.prepare('DELETE FROM matches WHERE id = ?').run(current.state.id)
+    })
+    run()
+    return current.state
   }
 }

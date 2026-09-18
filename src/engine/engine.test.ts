@@ -5,6 +5,7 @@ import {
   computeMatchStats,
   createMatchState,
   getRoles,
+  hydrateState,
   previewFoul,
   previewWin,
   replay,
@@ -40,6 +41,7 @@ function eventFrom(applied: ReturnType<typeof applyAction>): MatchEvent {
 describe('createMatchState', () => {
   it('creates 3-player live match with 1-4-7-10 points', () => {
     const s = three()
+    expect(s.mode).toBe('chase')
     expect(s.config.points).toEqual({
       foul: 1,
       normal: 4,
@@ -51,6 +53,14 @@ describe('createMatchState', () => {
     expect(roles.ben.name).toBe('张三')
     expect(roles.shang.name).toBe('王五')
     expect(roles.xia.name).toBe('李四')
+  })
+
+  it('hydrates legacy snapshots without mode as chase', () => {
+    const s = three()
+    const legacy = { ...s, mode: undefined, raceTo: undefined } as unknown as typeof s
+    const live = hydrateState(legacy)
+    expect(live.mode).toBe('chase')
+    expect(live.raceTo).toBeUndefined()
   })
 
   it('rejects invalid player counts', () => {
@@ -327,5 +337,84 @@ describe('ended match', () => {
     )
     const reopened = applyAction(ended, { kind: 'reopenMatch' }, 4).state
     expect(reopened.status).toBe('live')
+  })
+})
+
+function eight(raceTo = 3) {
+  return createMatchState({
+    id: 'm8',
+    code: 'EIGH',
+    names: ['甲', '乙'],
+    mode: 'eight',
+    raceTo,
+    now: 1,
+  })
+}
+
+describe('中8 race', () => {
+  it('creates a 2-player race with 普胜/接清/炸清', () => {
+    const s = eight(7)
+    expect(s.mode).toBe('eight')
+    expect(s.playerCount).toBe(2)
+    expect(s.raceTo).toBe(7)
+    expect(s.players.map((p) => p.score)).toEqual([0, 0])
+  })
+
+  it('rejects 3 players and chase-only win types', () => {
+    expect(() =>
+      createMatchState({ id: 'x', code: 'X', names: ['A', 'B', 'C'], mode: 'eight' }),
+    ).toThrow(/双人/)
+    const s0 = eight()
+    expect(() => previewWin(s0, 'smallGold')).toThrow(/普胜、接清、炸清/)
+    expect(() => previewFoul(s0)).toThrow(/不记犯规/)
+  })
+
+  it('普胜 +1 局，赢家继续开球', () => {
+    const s0 = eight(5)
+    const preview = previewWin(s0, 'normal')
+    expect(preview.amount).toBe(1)
+    expect(preview.winnerRacks).toBe(1)
+    expect(preview.loserRacks).toBe(0)
+    expect(preview.matchPoint).toBe(false)
+    const { state, event } = applyAction(s0, { kind: 'win', winType: 'normal' }, 2)
+    expect(state.players.find((p) => p.name === '甲')?.score).toBe(1)
+    expect(state.players.find((p) => p.name === '乙')?.score).toBe(0)
+    expect(getRoles(state).ben.name).toBe('甲')
+    expect(event.summary).toContain('普胜')
+    expect(event.summary).toContain('1-0')
+  })
+
+  it('接清、炸清各记 1 局并写入胜型', () => {
+    const s0 = eight(5)
+    const clear = applyAction(s0, { kind: 'win', winType: 'clear' }, 2)
+    expect(clear.event.action).toMatchObject({ kind: 'win', winType: 'clear' })
+    expect(clear.state.players.find((p) => p.name === '甲')?.score).toBe(1)
+    const boom = applyAction(clear.state, { kind: 'win', winType: 'breakClear', playerId: clear.state.players[1]!.id }, 3)
+    expect(boom.event.summary).toContain('炸清')
+    expect(boom.state.players.find((p) => p.name === '乙')?.score).toBe(1)
+    expect(getRoles(boom.state).ben.name).toBe('乙')
+  })
+
+  it('先到抢局数自动结束，撤销后恢复进行', () => {
+    const s0 = eight(2)
+    const a = s0.players[0]!
+    const w1 = applyAction(s0, { kind: 'win', winType: 'clear', playerId: a.id }, 2)
+    expect(w1.state.status).toBe('live')
+    const w2 = applyAction(w1.state, { kind: 'win', winType: 'breakClear', playerId: a.id }, 3)
+    expect(w2.state.status).toBe('ended')
+    expect(w2.state.players.find((p) => p.name === '甲')?.score).toBe(2)
+    expect(w2.event.summary).toContain('拿下比赛')
+    const events: MatchEvent[] = [eventFrom(w1), eventFrom(w2)]
+    const stats = computeMatchStats(w2.state, events)
+    const jia = stats.players.find((p) => p.name === '甲')!
+    expect(jia.wins.clear).toBe(1)
+    expect(jia.wins.breakClear).toBe(1)
+    expect(jia.score).toBe(2)
+    const undone = replay(s0, [
+      ...events,
+      { id: 'u1', seq: 3, at: 4, action: { kind: 'undo' }, summary: '撤销' },
+    ])
+    expect(undone.status).toBe('live')
+    expect(undone.players.find((p) => p.name === '甲')?.score).toBe(1)
   })
 })

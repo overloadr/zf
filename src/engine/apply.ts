@@ -1,4 +1,11 @@
-import { mergeConfig, RuleError } from './config.ts'
+import {
+  DEFAULT_RACE_TO,
+  isEightMode,
+  isEightWinType,
+  mergeConfig,
+  normalizeRaceTo,
+  RuleError,
+} from './config.ts'
 import { FOUL_LABELS, WIN_LABELS, isConcessionWinType } from './labels.ts'
 import { currentShooter, getRoles, orderAfterWin, orderedPlayers, playerById } from './roles.ts'
 import type {
@@ -7,6 +14,7 @@ import type {
   FoulPreview,
   FoulType,
   MatchEvent,
+  MatchMode,
   MatchState,
   Payment,
   Player,
@@ -47,10 +55,15 @@ export function createMatchState(opts: {
   code: string
   names: string[]
   config?: Parameters<typeof mergeConfig>[0]
+  mode?: MatchMode
+  raceTo?: number
   now?: number
 }): MatchState {
+  const mode: MatchMode = opts.mode === 'eight' ? 'eight' : 'chase'
   const count = opts.names.length
-  if (count !== 2 && count !== 3) {
+  if (mode === 'eight') {
+    if (count !== 2) throw new RuleError('中8模式为双人')
+  } else if (count !== 2 && count !== 3) {
     throw new RuleError('只支持 2 人或 3 人追分')
   }
   const names = opts.names.map((n) => n.trim()).filter(Boolean)
@@ -64,9 +77,11 @@ export function createMatchState(opts: {
     score: 0,
     seat,
   }))
+  const raceTo = mode === 'eight' ? normalizeRaceTo(opts.raceTo ?? DEFAULT_RACE_TO) : undefined
   return {
     id: opts.id,
     code: opts.code.toUpperCase(),
+    mode,
     playerCount: count as PlayerCount,
     players,
     shotOrder: players.map((p) => p.id),
@@ -75,6 +90,7 @@ export function createMatchState(opts: {
     concessionFromId: null,
     status: 'live',
     config: mergeConfig(opts.config),
+    raceTo,
     createdAt: now,
     updatedAt: now,
     seq: 0,
@@ -93,21 +109,33 @@ export function hydrateState(state: MatchState): MatchState {
     }
     currentIndex = 0
   }
+  const mode: MatchMode = state.mode === 'eight' ? 'eight' : 'chase'
+  const raceTo =
+    mode === 'eight' ? normalizeRaceTo(state.raceTo ?? DEFAULT_RACE_TO) : undefined
   return {
     ...state,
+    mode,
     config,
     shotOrder,
     currentIndex,
     concessionFromId: state.concessionFromId ?? null,
+    raceTo,
   }
 }
 
 export function previewWin(state: MatchState, winType: WinType, playerId?: string): WinPreview {
   requireLive(state)
   const live = hydrateState(state)
+  if (isEightMode(live)) return previewEightWin(live, winType, playerId)
+  if (winType === 'clear' || winType === 'breakClear') {
+    throw new RuleError('追分模式没有接清 / 炸清')
+  }
   const actorId = playerId ?? currentShooter(live).id
   const { shang, ben, xia } = getRoles(live, actorId)
   const base = baseWinType(winType)
+  if (base === 'clear' || base === 'breakClear') {
+    throw new RuleError('追分模式没有接清 / 炸清')
+  }
   const doubled = live.concessionActive || isConcessionWinType(winType)
   const unit = live.config.points[base]
   const each = roundAmount(unit * (doubled ? 2 : 1))
@@ -145,6 +173,32 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
   }
 }
 
+function previewEightWin(state: MatchState, winType: WinType, playerId?: string): WinPreview {
+  if (!isEightWinType(winType)) {
+    throw new RuleError('中8只记普胜、接清、炸清')
+  }
+  const actorId = playerId ?? currentShooter(state).id
+  const { ben } = getRoles(state, actorId)
+  const opponent = others(state, ben.id)[0]
+  if (!opponent) throw new RuleError('中8需要两名玩家')
+  const raceTo = state.raceTo ?? DEFAULT_RACE_TO
+  const winnerRacks = ben.score + 1
+  return {
+    winType,
+    winnerId: ben.id,
+    winnerName: ben.name,
+    loserId: opponent.id,
+    loserName: opponent.name,
+    amount: 1,
+    payers: [{ loserId: opponent.id, loserName: opponent.name, amount: 1 }],
+    doubled: false,
+    winnerRacks,
+    loserRacks: opponent.score,
+    raceTo,
+    matchPoint: winnerRacks >= raceTo,
+  }
+}
+
 export function previewFoul(
   state: MatchState,
   playerId?: string,
@@ -152,6 +206,7 @@ export function previewFoul(
 ): FoulPreview {
   requireLive(state)
   const live = hydrateState(state)
+  if (isEightMode(live)) throw new RuleError('中8不记犯规分')
   const actorId = playerId ?? currentShooter(live).id
   const { shang, ben, xia } = getRoles(live, actorId)
   const concessionFoul = live.concessionActive || foulType === 'concession'
@@ -169,6 +224,11 @@ export function previewFoul(
 }
 
 export function formatSettlement(preview: WinPreview): string {
+  if (preview.winnerRacks != null && preview.loserRacks != null) {
+    const line = `${preview.winnerRacks}-${preview.loserRacks}`
+    if (preview.matchPoint) return `以 ${line} 拿下比赛`
+    return `本局 ${line}（抢${preview.raceTo ?? DEFAULT_RACE_TO}）`
+  }
   if (preview.payers.length === 1) {
     const pay = preview.payers[0]
     return `从${pay.loserName}赢得 ${formatAmount(preview.amount)} 分`
@@ -192,12 +252,20 @@ export function applyAction(
   switch (action.kind) {
     case 'win': {
       const preview = previewWin(state, action.winType, action.playerId)
-      for (const pay of preview.payers) {
-        transfer(next, preview.winnerId, pay.loserId, pay.amount)
+      if (isEightMode(next)) {
+        const winner = next.players.find((p) => p.id === preview.winnerId)
+        if (!winner) throw new RuleError('结算玩家不存在')
+        winner.score += 1
+        next.shotOrder = orderAfterWin(next, preview.winnerId, preview.loserId)
+        if (winner.score >= (next.raceTo ?? DEFAULT_RACE_TO)) next.status = 'ended'
+      } else {
+        for (const pay of preview.payers) {
+          transfer(next, preview.winnerId, pay.loserId, pay.amount)
+        }
+        const { shang } = getRoles(hydrateState(state), preview.winnerId)
+        const orderLoser = preview.doubled ? preview.loserId : shang.id
+        next.shotOrder = orderAfterWin(next, preview.winnerId, orderLoser)
       }
-      const { shang } = getRoles(hydrateState(state), preview.winnerId)
-      const orderLoser = preview.doubled ? preview.loserId : shang.id
-      next.shotOrder = orderAfterWin(next, preview.winnerId, orderLoser)
       next.currentIndex = 0
       next.concessionActive = false
       next.concessionFromId = null
@@ -238,6 +306,7 @@ export function applyAction(
       }
     }
     case 'startConcession': {
+      if (isEightMode(next)) throw new RuleError('中8没有让杆')
       if (state.concessionActive) throw new RuleError('已经在让杆中')
       const live = hydrateState(state)
       const shooter = currentShooter(live)

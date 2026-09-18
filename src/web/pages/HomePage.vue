@@ -5,7 +5,7 @@
         <img class="brand-mark" src="/icon.svg" alt="" />
         <div>
           <h1>追分记分</h1>
-          <p class="sub">双人 / 三人 · 多端实时同步</p>
+          <p class="sub">双人 / 三人 / 中8 · 多端实时同步</p>
         </div>
       </div>
     </header>
@@ -40,7 +40,7 @@
           <div class="code">{{ m.code }}</div>
           <div class="names">{{ m.players.map((p) => p.name).join(' · ') }}</div>
         </div>
-        <div class="muted">{{ m.playerCount }}人</div>
+        <div class="muted">{{ matchKindLabel(m) }}</div>
       </router-link>
     </div>
   </div>
@@ -49,7 +49,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { MatchState } from '@engine'
+import { matchKindLabel, type MatchState } from '@engine'
 import { listMatches } from '../api.ts'
 
 const router = useRouter()

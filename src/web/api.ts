@@ -26,13 +26,21 @@ async function parse<T>(res: Response): Promise<T> {
   return data
 }
 
-export async function listMatches(status: 'live' | 'ended' | 'all' = 'all') {
-  return parse<{ matches: MatchState[] }>(await fetch(`/api/matches?status=${status}`))
+export async function listMatches(
+  status: 'live' | 'ended' | 'all' = 'all',
+  range?: { from?: number; to?: number },
+) {
+  const params = new URLSearchParams({ status })
+  if (range?.from != null) params.set('from', String(range.from))
+  if (range?.to != null) params.set('to', String(range.to))
+  return parse<{ matches: MatchState[] }>(await fetch(`/api/matches?${params}`))
 }
 
 export async function createMatch(body: {
   names: string[]
   points?: Record<string, number>
+  mode?: 'chase' | 'eight'
+  raceTo?: number
 }) {
   return parse<{ state: MatchState }>(
     await fetch('/api/matches', {
@@ -46,6 +54,16 @@ export async function createMatch(body: {
 export async function getMatch(code: string) {
   return parse<{ state: MatchState; events: MatchEvent[]; initial: MatchState }>(
     await fetch(`/api/matches/${code}`),
+  )
+}
+
+export async function deleteMatch(code: string, username: string, password: string) {
+  return parse<{ ok: boolean; code: string }>(
+    await fetch(`/api/matches/${code}`, {
+      method: 'DELETE',
+      headers: jsonHeaders,
+      body: JSON.stringify({ username, password }),
+    }),
   )
 }
 

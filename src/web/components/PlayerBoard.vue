@@ -32,22 +32,30 @@
             {{ card.streak.label }}
           </span>
         </div>
-        <div class="stats">
-          <span>普胜 {{ card.stats.wins.normal }}</span>
-          <span>小金 {{ card.stats.wins.smallGold }}</span>
-          <span>大金 {{ card.stats.wins.bigGold }}</span>
-          <span>金九 {{ card.stats.wins.goldenNine }}</span>
-          <span>让杆普胜 {{ card.stats.wins.concession }}</span>
-          <span>让杆小金 {{ card.stats.wins.concessionSmallGold }}</span>
-          <span>犯规 {{ card.stats.fouls.normal }}</span>
-          <span>让犯 {{ card.stats.fouls.concession }}</span>
-          <span>让杆 {{ card.stats.concessionsGiven }}</span>
+        <div class="stats" :class="{ eight: eight }">
+          <template v-if="eight">
+            <span>普胜 {{ card.stats.wins.normal }}</span>
+            <span>接清 {{ card.stats.wins.clear }}</span>
+            <span>炸清 {{ card.stats.wins.breakClear }}</span>
+          </template>
+          <template v-else>
+            <span>普胜 {{ card.stats.wins.normal }}</span>
+            <span>小金 {{ card.stats.wins.smallGold }}</span>
+            <span>大金 {{ card.stats.wins.bigGold }}</span>
+            <span>金九 {{ card.stats.wins.goldenNine }}</span>
+            <span>让杆普胜 {{ card.stats.wins.concession }}</span>
+            <span>让杆小金 {{ card.stats.wins.concessionSmallGold }}</span>
+            <span>犯规 {{ card.stats.fouls.normal }}</span>
+            <span>让犯 {{ card.stats.fouls.concession }}</span>
+            <span>让杆 {{ card.stats.concessionsGiven }}</span>
+          </template>
         </div>
       </div>
       <div class="score-col">
-        <div class="score" :class="{ pos: card.player.score > 0, neg: card.player.score < 0 }">
-          {{ signed(card.player.score) }}
+        <div class="score" :class="scoreClass(card.player.score)">
+          {{ displayScore(card.player.score) }}
         </div>
+        <span v-if="eight" class="race-cap">/{{ state.raceTo ?? 7 }}</span>
         <span class="rename" @click.stop="rename(card.player.id)">改名</span>
       </div>
     </button>
@@ -64,6 +72,7 @@ import {
   emptyPlayerStats,
   formatAmount,
   hydrateState,
+  isEightMode,
   seatedPlayers,
   type MatchEvent,
   type MatchState,
@@ -90,6 +99,7 @@ function rename(playerId: string) {
 }
 
 const live = computed(() => hydrateState(props.state))
+const eight = computed(() => isEightMode(live.value))
 
 const statsById = computed(() => {
   const stats = computeMatchStats(live.value, props.events)
@@ -138,9 +148,15 @@ function streakOf(stats: PlayerStats) {
   return null
 }
 
-function signed(n: number) {
+function displayScore(n: number) {
+  if (eight.value) return formatAmount(n)
   const s = formatAmount(n)
   return n > 0 ? `+${s}` : s
+}
+
+function scoreClass(n: number) {
+  if (eight.value) return n > 0 ? 'pos' : ''
+  return { pos: n > 0, neg: n < 0 }
 }
 </script>
 
@@ -291,6 +307,11 @@ function signed(n: number) {
   margin: 0;
   min-height: 0;
 }
+.stats.eight {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+  align-content: end;
+}
 .stats span {
   font-size: 11px;
   color: var(--muted);
@@ -301,6 +322,11 @@ function signed(n: number) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.race-cap {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .score-col {
   display: flex;

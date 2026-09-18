@@ -8,11 +8,12 @@ export {
   previewWin,
   roundAmount,
 } from './apply.ts'
-export { DEFAULT_CONFIG, DEFAULT_POINTS, mergeConfig, RuleError, WIN_TYPES } from './config.ts'
+export { DEFAULT_CONFIG, DEFAULT_POINTS, DEFAULT_RACE_TO, EIGHT_WIN_TYPES, RACE_PRESETS, WIN_TYPES, isEightMode, isEightWinType, mergeConfig, normalizeRaceTo, RuleError } from './config.ts'
 export {
   CUE_LABELS,
   FOUL_LABELS,
   ROLE_LABELS,
+  matchKindLabel,
   seatLabel,
   WIN_LABELS,
   isConcessionWinType,
@@ -33,9 +34,11 @@ export { aggregateNamedStats, computeMatchStats, emptyPlayerStats } from './stat
 export type {
   Action,
   BaseWinType,
+  EightWinType,
   FoulPreview,
   FoulType,
   MatchEvent,
+  MatchMode,
   MatchState,
   MatchStats,
   NamedStats,

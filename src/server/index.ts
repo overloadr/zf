@@ -11,6 +11,7 @@ import {
   RuleError,
   type Action,
 } from '../engine/index.ts'
+import { AuthError, loadAppConfig, verifyAdmin } from './app-config.ts'
 import { openDatabase } from './db.ts'
 import { Hub } from './hub.ts'
 import { ConflictError, MatchStore } from './store.ts'
@@ -31,21 +32,31 @@ async function main() {
   app.get('/api/health', async () => ({ ok: true }))
 
   app.get('/api/matches', async (req) => {
-    const q = req.query as { status?: string }
+    const q = req.query as { status?: string; from?: string; to?: string }
     const status =
       q.status === 'live' || q.status === 'ended' || q.status === 'all' ? q.status : 'all'
-    return { matches: store.list(status) }
+    return {
+      matches: store.list({
+        status,
+        from: parseMs(q.from),
+        to: parseMs(q.to),
+      }),
+    }
   })
 
   app.post('/api/matches', async (req, reply) => {
     const body = req.body as {
       names?: string[]
       points?: Record<string, number>
+      mode?: 'chase' | 'eight'
+      raceTo?: number
     }
     try {
       const state = store.create({
         names: body.names ?? [],
         config: body.points ? { points: body.points as never } : undefined,
+        mode: body.mode,
+        raceTo: body.raceTo,
       })
       return reply.code(201).send({ state })
     } catch (err) {
@@ -58,6 +69,22 @@ async function main() {
     const record = store.getByCode(code)
     if (!record) return reply.code(404).send({ error: '找不到这场比赛' })
     return record
+  })
+
+  app.delete('/api/matches/:code', async (req, reply) => {
+    const { code } = req.params as { code: string }
+    const body = req.body as { username?: string; password?: string }
+    try {
+      verifyAdmin(body.username ?? '', body.password ?? '', loadAppConfig())
+      const state = store.deleteEnded(code)
+      hub.drop(state.code)
+      return { ok: true, code: state.code }
+    } catch (err) {
+      if (err instanceof RuleError && err.message === '找不到这场比赛') {
+        return reply.code(404).send({ error: err.message })
+      }
+      return sendError(reply, err)
+    }
   })
 
   app.get('/api/matches/:code/stats', async (req, reply) => {
@@ -138,7 +165,16 @@ async function main() {
   await app.listen({ port: PORT, host: HOST })
 }
 
+function parseMs(value?: string): number | undefined {
+  if (value == null || value === '') return undefined
+  const n = Number(value)
+  return Number.isFinite(n) ? n : undefined
+}
+
 function sendError(reply: { code: (n: number) => { send: (b: unknown) => unknown } }, err: unknown) {
+  if (err instanceof AuthError) {
+    return reply.code(err.status).send({ error: err.message })
+  }
   if (err instanceof ConflictError) {
     return reply.code(409).send({
       error: err.message,

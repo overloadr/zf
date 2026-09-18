@@ -18,6 +18,8 @@ function emptyWins(): Record<WinType, number> {
     goldenNine: 0,
     concession: 0,
     concessionSmallGold: 0,
+    clear: 0,
+    breakClear: 0,
   }
 }
 
@@ -102,6 +104,8 @@ export function computeMatchStats(state: MatchState, events: MatchEvent[]): Matc
     matchId: state.id,
     code: state.code,
     racks,
+    mode: state.mode === 'eight' ? 'eight' : 'chase',
+    raceTo: state.raceTo,
     players: state.players.map((p) => byId.get(p.id)!),
   }
 }

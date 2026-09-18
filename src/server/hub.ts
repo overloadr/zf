@@ -39,4 +39,15 @@ export class Hub {
       if (socket.readyState === 1) socket.send(payload)
     }
   }
+
+  drop(code: string, error = '这场比赛已删除'): void {
+    const key = code.toUpperCase()
+    const set = this.rooms.get(key)
+    if (!set) return
+    const payload = JSON.stringify({ type: 'error', error })
+    for (const socket of set) {
+      if (socket.readyState === 1) socket.send(payload)
+    }
+    this.rooms.delete(key)
+  }
 }

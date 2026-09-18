@@ -1,4 +1,4 @@
-import type { FoulType, WinType } from './types.ts'
+import type { FoulType, MatchState, WinType } from './types.ts'
 
 export const WIN_LABELS: Record<WinType, string> = {
   normal: '普胜',
@@ -7,6 +7,8 @@ export const WIN_LABELS: Record<WinType, string> = {
   goldenNine: '黄金九',
   concession: '让杆普胜',
   concessionSmallGold: '让杆小金',
+  clear: '接清',
+  breakClear: '炸清',
 }
 
 export function isConcessionWinType(winType: WinType): boolean {
@@ -37,4 +39,9 @@ export const CUE_BY_INDEX: CueTag[] = ['break', 'second', 'third']
 export function seatLabel(playerCount: 2 | 3, seat: number): string {
   if (playerCount === 2) return seat === 0 ? '上' : '下'
   return ['上', '中', '下'][seat] ?? `${seat + 1}`
+}
+
+export function matchKindLabel(state: Pick<MatchState, 'mode' | 'playerCount' | 'raceTo'>): string {
+  if (state.mode === 'eight') return `中8 · 抢${state.raceTo ?? 7}`
+  return `${state.playerCount}人追分`
 }

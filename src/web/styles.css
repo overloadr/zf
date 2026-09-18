@@ -206,7 +206,9 @@ button {
 }
 
 input[type='text'],
-input[type='number'] {
+input[type='number'],
+input[type='password'],
+input[type='date'] {
   width: 100%;
   min-height: 48px;
   border-radius: 16px;
@@ -214,6 +216,7 @@ input[type='number'] {
   background: rgba(0, 0, 0, 0.22);
   padding: 0 14px;
   outline: none;
+  color-scheme: dark;
 }
 
 input:focus {

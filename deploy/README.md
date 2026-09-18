@@ -43,6 +43,8 @@ sudo systemctl status zf
 sudo sqlite3 /var/lib/zf/zf.db ".backup '/var/backups/zf-$(date +%F).db'"
 ```
 
+管理员账号：复制 `config.example.json` 为 `/opt/zf/config.json`（或 `WorkingDirectory` 下），改好 `admin.username` / `admin.password`。也可用 systemd 环境变量 `ADMIN_USERNAME`、`ADMIN_PASSWORD`。
+
 ## 5. Nginx 反代
 
 ```bash

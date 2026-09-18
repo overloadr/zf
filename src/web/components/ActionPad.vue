@@ -1,48 +1,68 @@
 <template>
   <section class="pad" :class="{ locked: !enabled }">
     <p v-if="!enabled" class="need">先点上面的玩家，再记这一杆</p>
-    <div class="row">
-      <button class="btn btn-gold wide" :disabled="!enabled" @click="emit('win', 'normal')">
-        普胜
-        <small>+{{ points.normal }}</small>
-      </button>
-    </div>
-    <div class="row">
-      <button class="btn goldish" :disabled="!enabled" @click="emit('win', 'smallGold')">
-        小金
-        <small>+{{ points.smallGold }}</small>
-      </button>
-      <button class="btn goldish" :disabled="!enabled" @click="emit('win', 'bigGold')">
-        大金
-        <small>+{{ points.bigGold }}{{ bothPay ? '×2家' : '' }}</small>
-      </button>
-    </div>
-    <div class="row">
-      <button class="btn goldish wide" :disabled="!enabled" @click="emit('win', 'goldenNine')">
-        黄金九
-        <small>+{{ points.goldenNine }}{{ bothPay ? '×2家' : '' }}</small>
-      </button>
-    </div>
-    <div class="row">
-      <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concession')">
-        让杆普胜
-        <small>+{{ points.normal * 2 }}</small>
-      </button>
-      <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concessionSmallGold')">
-        让杆小金
-        <small>+{{ points.smallGold * 2 }}</small>
-      </button>
-    </div>
-    <div class="row">
-      <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul', 'normal')">
-        普通犯规
-        <small>赔上家 {{ points.foul }}</small>
-      </button>
-      <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul', 'concession')">
-        让杆犯规
-        <small>赔下家 {{ points.foul }}</small>
-      </button>
-    </div>
+    <template v-if="eight">
+      <div class="row">
+        <button class="btn btn-gold wide" :disabled="!enabled" @click="emit('win', 'normal')">
+          普胜
+          <small>+1 局</small>
+        </button>
+      </div>
+      <div class="row">
+        <button class="btn goldish" :disabled="!enabled" @click="emit('win', 'clear')">
+          接清
+          <small>+1 局</small>
+        </button>
+        <button class="btn goldish" :disabled="!enabled" @click="emit('win', 'breakClear')">
+          炸清
+          <small>+1 局</small>
+        </button>
+      </div>
+    </template>
+    <template v-else>
+      <div class="row">
+        <button class="btn btn-gold wide" :disabled="!enabled" @click="emit('win', 'normal')">
+          普胜
+          <small>+{{ points.normal }}</small>
+        </button>
+      </div>
+      <div class="row">
+        <button class="btn goldish" :disabled="!enabled" @click="emit('win', 'smallGold')">
+          小金
+          <small>+{{ points.smallGold }}</small>
+        </button>
+        <button class="btn goldish" :disabled="!enabled" @click="emit('win', 'bigGold')">
+          大金
+          <small>+{{ points.bigGold }}{{ bothPay ? '×2家' : '' }}</small>
+        </button>
+      </div>
+      <div class="row">
+        <button class="btn goldish wide" :disabled="!enabled" @click="emit('win', 'goldenNine')">
+          黄金九
+          <small>+{{ points.goldenNine }}{{ bothPay ? '×2家' : '' }}</small>
+        </button>
+      </div>
+      <div class="row">
+        <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concession')">
+          让杆普胜
+          <small>+{{ points.normal * 2 }}</small>
+        </button>
+        <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concessionSmallGold')">
+          让杆小金
+          <small>+{{ points.smallGold * 2 }}</small>
+        </button>
+      </div>
+      <div class="row">
+        <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul', 'normal')">
+          普通犯规
+          <small>赔上家 {{ points.foul }}</small>
+        </button>
+        <button class="btn btn-danger" :disabled="!enabled" @click="emit('foul', 'concession')">
+          让杆犯规
+          <small>赔下家 {{ points.foul }}</small>
+        </button>
+      </div>
+    </template>
     <div class="row">
       <button class="btn btn-ghost span" :disabled="!canUndo" @click="emit('undo')">撤销</button>
     </div>
@@ -57,6 +77,7 @@ defineProps<{
   canUndo: boolean
   points: PointTable
   bothPay: boolean
+  eight?: boolean
 }>()
 
 const emit = defineEmits<{

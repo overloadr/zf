@@ -28,12 +28,13 @@
           :can-undo="events.length > 0"
           :points="state.config.points"
           :both-pay="state.playerCount === 3"
+          :eight="isEight"
           @win="onWin"
           @foul="onFoul"
           @undo="run({ kind: 'undo' })"
         />
       </div>
-      <div v-else class="card ended">本场已结束</div>
+      <div v-else class="card ended">{{ endedText }}</div>
 
       <div class="grid-2 tools">
         <router-link class="btn btn-ghost" :to="`/m/${code}/stats`">本场统计</router-link>
@@ -98,6 +99,7 @@ import {
   currentShooter,
   hydrateState,
   formatSettlement,
+  isEightMode,
   previewWin,
   WIN_LABELS,
   type Action,
@@ -132,10 +134,26 @@ watch(
 )
 
 const visibleEvents = computed(() => [...events.value].reverse().slice(0, 20))
+const isEight = computed(() => !!state.value && isEightMode(state.value))
+const endedText = computed(() => {
+  if (!state.value) return '本场已结束'
+  if (!isEight.value) return '本场已结束'
+  const [a, b] = state.value.players
+  if (!a || !b) return '本场已结束'
+  const leader = a.score >= b.score ? a : b
+  const other = leader.id === a.id ? b : a
+  if (leader.score >= (state.value.raceTo ?? 7) && leader.score !== other.score) {
+    return `${leader.name} ${leader.score}-${other.score} 获胜`
+  }
+  return '本场已结束'
+})
 
 const hintText = computed(() => {
   if (!state.value) return ''
-  if (!selectedId.value) return '先点玩家，再记普胜 / 金 / 犯规 / 让杆'
+  if (state.value.status === 'ended') return endedText.value
+  if (!selectedId.value) {
+    return isEight.value ? '先点玩家，再记普胜 / 接清 / 炸清' : '先点玩家，再记普胜 / 金 / 犯规 / 让杆'
+  }
   const name = state.value.players.find((p) => p.id === selectedId.value)?.name ?? ''
   try {
     const p = previewWin(state.value, 'normal', selectedId.value)

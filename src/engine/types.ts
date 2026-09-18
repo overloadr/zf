@@ -1,5 +1,7 @@
 export type PlayerCount = 2 | 3
 
+export type MatchMode = 'chase' | 'eight'
+
 export type WinType =
   | 'normal'
   | 'smallGold'
@@ -7,8 +9,12 @@ export type WinType =
   | 'goldenNine'
   | 'concession'
   | 'concessionSmallGold'
+  | 'clear'
+  | 'breakClear'
 
 export type FoulType = 'normal' | 'concession'
+
+export type EightWinType = 'normal' | 'clear' | 'breakClear'
 
 export type BaseWinType = Exclude<WinType, 'concession' | 'concessionSmallGold'>
 
@@ -36,6 +42,7 @@ export type MatchStatus = 'live' | 'ended'
 export interface MatchState {
   id: string
   code: string
+  mode: MatchMode
   playerCount: PlayerCount
   players: Player[]
   shotOrder: string[]
@@ -44,6 +51,7 @@ export interface MatchState {
   concessionFromId: string | null
   status: MatchStatus
   config: RuleConfig
+  raceTo?: number
   createdAt: number
   updatedAt: number
   seq: number
@@ -87,6 +95,10 @@ export interface WinPreview {
   amount: number
   payers: Payment[]
   doubled: boolean
+  winnerRacks?: number
+  loserRacks?: number
+  raceTo?: number
+  matchPoint?: boolean
 }
 
 export interface FoulPreview {
@@ -119,6 +131,8 @@ export interface MatchStats {
   matchId: string
   code: string
   racks: number
+  mode: MatchMode
+  raceTo?: number
   players: PlayerStats[]
 }
 

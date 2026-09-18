@@ -20,7 +20,30 @@ export const WIN_TYPES = [
   'goldenNine',
   'concession',
   'concessionSmallGold',
+  'clear',
+  'breakClear',
 ] as const
+
+export const EIGHT_WIN_TYPES = ['normal', 'clear', 'breakClear'] as const
+
+export const DEFAULT_RACE_TO = 7
+export const RACE_PRESETS = [5, 7, 9, 11, 13] as const
+
+export function isEightMode(state: { mode?: string }): boolean {
+  return state.mode === 'eight'
+}
+
+export function isEightWinType(winType: string): winType is (typeof EIGHT_WIN_TYPES)[number] {
+  return (EIGHT_WIN_TYPES as readonly string[]).includes(winType)
+}
+
+export function normalizeRaceTo(value?: number): number {
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < 1 || n > 99) {
+    throw new RuleError('抢局数须为 1 到 99 的整数')
+  }
+  return n
+}
 
 type LegacyConfig = Partial<RuleConfig> & {
   stake?: number

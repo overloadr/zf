@@ -18,6 +18,8 @@
       <p class="muted">{{ p.matches }} 场 · 击球 {{ p.racksPlayed }} 局 · 最大单杆 {{ p.biggestWin }}</p>
       <div class="chips">
         <span>普胜 {{ p.wins.normal }}</span>
+        <span>接清 {{ p.wins.clear }}</span>
+        <span>炸清 {{ p.wins.breakClear }}</span>
         <span>小金 {{ p.wins.smallGold }}</span>
         <span>大金 {{ p.wins.bigGold }}</span>
         <span>黄金九 {{ p.wins.goldenNine }}</span>
