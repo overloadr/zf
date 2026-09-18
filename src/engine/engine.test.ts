@@ -298,22 +298,23 @@ describe('stats', () => {
     expect(li.currentWinStreak).toBe(0)
   })
 
-  it('counts a foul as a loss for the fouler and a win for the receiver', () => {
+  it('does not count fouls toward win or lose streaks', () => {
     const s0 = two()
     const a = s0.players[0]!
     const w1 = applyAction(s0, { kind: 'win', winType: 'normal', playerId: a.id }, 2)
     const w2 = applyAction(w1.state, { kind: 'win', winType: 'normal', playerId: a.id }, 3)
     const f = applyAction(w2.state, { kind: 'foul', foulType: 'normal', playerId: a.id }, 4)
-    const events = [w1, w2, f].map(eventFrom)
-    const stats = computeMatchStats(f.state, events)
+    const w3 = applyAction(f.state, { kind: 'win', winType: 'normal', playerId: a.id }, 5)
+    const events = [w1, w2, f, w3].map(eventFrom)
+    const stats = computeMatchStats(w3.state, events)
     const jia = stats.players.find((p) => p.name === '甲')!
     const yi = stats.players.find((p) => p.name === '乙')!
-    expect(jia.maxWinStreak).toBe(2)
-    expect(jia.currentWinStreak).toBe(0)
-    expect(jia.currentLoseStreak).toBe(1)
-    expect(yi.maxLoseStreak).toBe(2)
-    expect(yi.currentLoseStreak).toBe(0)
-    expect(yi.currentWinStreak).toBe(1)
+    expect(jia.currentWinStreak).toBe(3)
+    expect(jia.maxWinStreak).toBe(3)
+    expect(jia.currentLoseStreak).toBe(0)
+    expect(yi.currentLoseStreak).toBe(3)
+    expect(yi.maxLoseStreak).toBe(3)
+    expect(yi.currentWinStreak).toBe(0)
   })
 })
 

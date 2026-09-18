@@ -14,7 +14,12 @@
       }"
       @click="pick(card.player.id)"
     >
-      <div v-if="card.streak" class="fx" :class="card.streak.kind" aria-hidden="true">
+      <div
+        v-if="card.streak && selectedId !== card.player.id"
+        class="fx"
+        :class="card.streak.kind"
+        aria-hidden="true"
+      >
         <i></i><i></i><i></i><i></i>
       </div>
       <div class="who">{{ card.player.name }}</div>
@@ -164,32 +169,19 @@ function signed(n: number) {
   user-select: none;
   -webkit-user-select: none;
   position: relative;
-  overflow: hidden;
   isolation: isolate;
 }
 .person.shooting {
   border-color: rgba(230, 195, 106, 0.28);
 }
-.person.hot {
-  border-color: rgba(255, 156, 64, 0.55);
-  background: linear-gradient(180deg, rgba(255, 110, 28, 0.28), rgba(12, 32, 22, 0.62));
+.person.hot:not(.selected) {
+  background: linear-gradient(180deg, rgba(255, 110, 28, 0.16), rgba(12, 32, 22, 0.62));
 }
-.person.hot.streak-3 {
-  border-color: rgba(255, 176, 72, 0.72);
+.person.cold:not(.selected) {
+  background: linear-gradient(180deg, rgba(64, 108, 152, 0.16), rgba(8, 16, 22, 0.74));
 }
-.person.hot.streak-5 {
-  border-color: rgba(255, 210, 110, 0.9);
-}
-.person.cold {
-  border-color: rgba(126, 176, 216, 0.42);
-  background: linear-gradient(180deg, rgba(64, 108, 152, 0.24), rgba(8, 16, 22, 0.74));
-}
-.person.cold.streak-3,
-.person.cold.streak-5 {
-  border-color: rgba(156, 198, 236, 0.58);
-}
-.person.hot::before,
-.person.cold::before {
+.person.hot:not(.selected)::before,
+.person.cold:not(.selected)::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -197,27 +189,25 @@ function signed(n: number) {
   pointer-events: none;
   z-index: 0;
 }
-.person.hot::before {
-  box-shadow: inset 0 0 28px rgba(255, 120, 24, 0.3);
+.person.hot:not(.selected)::before {
+  box-shadow: inset 0 0 22px rgba(255, 120, 24, 0.22);
   animation: hotIn 1.6s ease-in-out infinite;
 }
-.person.hot.streak-5::before {
-  box-shadow: inset 0 0 36px rgba(255, 90, 8, 0.42);
+.person.hot.streak-5:not(.selected)::before {
+  box-shadow: inset 0 0 30px rgba(255, 90, 8, 0.32);
 }
-.person.cold::before {
-  box-shadow: inset 0 0 26px rgba(80, 140, 200, 0.26);
+.person.cold:not(.selected)::before {
+  box-shadow: inset 0 0 20px rgba(80, 140, 200, 0.2);
   animation: coldIn 2.2s ease-in-out infinite;
 }
 .person.selected {
+  z-index: 3;
   border-color: var(--gold);
-  background: linear-gradient(180deg, rgba(230, 195, 106, 0.28), rgba(12, 32, 22, 0.62));
-  box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.45);
-}
-.person.selected.hot {
-  box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.45), 0 0 22px rgba(255, 120, 40, 0.4);
-}
-.person.selected.cold {
-  box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.45), 0 0 16px rgba(90, 140, 190, 0.32);
+  background: linear-gradient(180deg, rgba(230, 195, 106, 0.38), rgba(12, 32, 22, 0.72));
+  box-shadow:
+    0 0 0 3px var(--gold),
+    0 0 0 7px rgba(230, 195, 106, 0.28),
+    0 10px 28px rgba(0, 0, 0, 0.35);
 }
 .who,
 .info,
@@ -270,12 +260,13 @@ function signed(n: number) {
   color: var(--gold-2);
 }
 .picked {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   color: #1b1404;
   background: var(--gold);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 10px;
+  box-shadow: 0 0 10px rgba(230, 195, 106, 0.55);
 }
 .stats {
   display: flex;
@@ -331,6 +322,12 @@ function signed(n: number) {
 .streak.cold {
   color: #d7eaff;
   background: linear-gradient(180deg, rgba(96, 148, 198, 0.7), rgba(40, 72, 112, 0.82));
+}
+.person.selected .streak {
+  animation: none;
+  box-shadow: none;
+  filter: none;
+  opacity: 0.88;
 }
 .fx {
   position: absolute;
@@ -392,8 +389,8 @@ function signed(n: number) {
   100% { transform: translateY(100px) rotate(48deg); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .person.hot::before,
-  .person.cold::before,
+  .person.hot:not(.selected)::before,
+  .person.cold:not(.selected)::before,
   .streak.hot,
   .fx i {
     animation: none;

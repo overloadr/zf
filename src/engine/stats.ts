@@ -93,13 +93,9 @@ export function computeMatchStats(state: MatchState, events: MatchEvent[]): Matc
         fouler.fouls[event.action.foulType] += 1
         fouler.racksPlayed += 1
         fouler.pointsLost += event.amount ?? 0
-        markLoss(fouler)
       }
       const receiver = byId.get(event.winnerId ?? '')
-      if (receiver) {
-        receiver.pointsWon += event.amount ?? 0
-        markWin(receiver)
-      }
+      if (receiver) receiver.pointsWon += event.amount ?? 0
     }
   }
   return {
