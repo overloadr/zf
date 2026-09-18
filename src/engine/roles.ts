@@ -1,5 +1,5 @@
 import { CUE_BY_INDEX, type CueTag } from './labels.ts'
-import type { MatchState, Player } from './types.ts'
+import type { MatchState, Player, SweepOrder } from './types.ts'
 
 export interface Roles {
   shang: Player
@@ -55,6 +55,28 @@ export function orderAfterWin(state: MatchState, winnerId: string, loserId: stri
     .map((p) => p.id)
     .filter((id) => id !== winnerId && id !== loserId)
   return [winnerId, loserId, ...rest]
+}
+
+export function randomBit(seed: number): boolean {
+  let x = seed | 0
+  x = Math.imul(x ^ (x >>> 16), 0x7feb352d)
+  x = Math.imul(x ^ (x >>> 15), 0x846ca68b)
+  return ((x ^ (x >>> 16)) >>> 0) % 2 === 1
+}
+
+export function orderAfterSweep(
+  state: MatchState,
+  winnerId: string,
+  mode: SweepOrder,
+  seed = 0,
+): string[] {
+  const rest = orderedPlayers(state)
+    .map((p) => p.id)
+    .filter((id) => id !== winnerId)
+  if (mode === 'rotate' || (mode === 'random' && randomBit(seed))) {
+    rest.reverse()
+  }
+  return [winnerId, ...rest]
 }
 
 export function seatedPlayers(state: MatchState): Player[] {

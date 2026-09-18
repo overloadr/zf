@@ -41,6 +41,7 @@ export async function createMatch(body: {
   points?: Record<string, number>
   mode?: 'chase' | 'eight'
   raceTo?: number
+  sweepOrder?: 'keep' | 'rotate' | 'random'
 }) {
   return parse<{ state: MatchState }>(
     await fetch('/api/matches', {

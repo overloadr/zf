@@ -6,6 +6,7 @@ import {
   createMatchState,
   getRoles,
   hydrateState,
+  orderAfterSweep,
   previewFoul,
   previewWin,
   replay,
@@ -42,6 +43,7 @@ describe('createMatchState', () => {
   it('creates 3-player live match with 1-4-7-10 points', () => {
     const s = three()
     expect(s.mode).toBe('chase')
+    expect(s.sweepOrder).toBe('keep')
     expect(s.config.points).toEqual({
       foul: 1,
       normal: 4,
@@ -101,6 +103,48 @@ describe('3-player chase', () => {
     expect(state.players.find((p) => p.name === '张三')?.score).toBe(20)
     expect(state.players.find((p) => p.name === '李四')?.score).toBe(-10)
     expect(state.players.find((p) => p.name === '王五')?.score).toBe(-10)
+  })
+
+  function namesOf(state: ReturnType<typeof createMatchState>) {
+    return state.shotOrder.map((id) => state.players.find((p) => p.id === id)!.name)
+  }
+
+  it('通吃后默认二杆三杆保持不变', () => {
+    const s0 = three()
+    const { state } = applyAction(s0, { kind: 'win', winType: 'bigGold' }, 2)
+    expect(namesOf(state)).toEqual(['张三', '李四', '王五'])
+    const nine = applyAction(state, { kind: 'win', winType: 'goldenNine' }, 3)
+    expect(namesOf(nine.state)).toEqual(['张三', '李四', '王五'])
+  })
+
+  it('通吃后二杆三杆可轮换', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      sweepOrder: 'rotate',
+      now: 1,
+    })
+    const w1 = applyAction(s0, { kind: 'win', winType: 'goldenNine' }, 2)
+    expect(namesOf(w1.state)).toEqual(['张三', '王五', '李四'])
+    const w2 = applyAction(w1.state, { kind: 'win', winType: 'bigGold' }, 3)
+    expect(namesOf(w2.state)).toEqual(['张三', '李四', '王五'])
+  })
+
+  it('通吃后二杆三杆可随机', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      sweepOrder: 'random',
+      now: 1,
+    })
+    const winner = s0.players[0]!.id
+    const seen = new Set<string>()
+    for (let seed = 0; seed < 40; seed++) {
+      seen.add(orderAfterSweep(s0, winner, 'random', seed).slice(1).join(','))
+    }
+    expect(seen.size).toBe(2)
   })
 
   it('让杆普胜直接由下家双倍赔 8 分', () => {

@@ -4,10 +4,18 @@ import {
   isEightWinType,
   mergeConfig,
   normalizeRaceTo,
+  normalizeSweepOrder,
   RuleError,
 } from './config.ts'
 import { FOUL_LABELS, WIN_LABELS, isConcessionWinType } from './labels.ts'
-import { currentShooter, getRoles, orderAfterWin, orderedPlayers, playerById } from './roles.ts'
+import {
+  currentShooter,
+  getRoles,
+  orderAfterSweep,
+  orderAfterWin,
+  orderedPlayers,
+  playerById,
+} from './roles.ts'
 import type {
   Action,
   BaseWinType,
@@ -19,6 +27,7 @@ import type {
   Payment,
   Player,
   PlayerCount,
+  SweepOrder,
   WinPreview,
   WinType,
 } from './types.ts'
@@ -57,6 +66,7 @@ export function createMatchState(opts: {
   config?: Parameters<typeof mergeConfig>[0]
   mode?: MatchMode
   raceTo?: number
+  sweepOrder?: SweepOrder
   now?: number
 }): MatchState {
   const mode: MatchMode = opts.mode === 'eight' ? 'eight' : 'chase'
@@ -78,6 +88,8 @@ export function createMatchState(opts: {
     seat,
   }))
   const raceTo = mode === 'eight' ? normalizeRaceTo(opts.raceTo ?? DEFAULT_RACE_TO) : undefined
+  const sweepOrder =
+    mode === 'chase' && count === 3 ? normalizeSweepOrder(opts.sweepOrder) : undefined
   return {
     id: opts.id,
     code: opts.code.toUpperCase(),
@@ -91,6 +103,7 @@ export function createMatchState(opts: {
     status: 'live',
     config: mergeConfig(opts.config),
     raceTo,
+    sweepOrder,
     createdAt: now,
     updatedAt: now,
     seq: 0,
@@ -112,6 +125,8 @@ export function hydrateState(state: MatchState): MatchState {
   const mode: MatchMode = state.mode === 'eight' ? 'eight' : 'chase'
   const raceTo =
     mode === 'eight' ? normalizeRaceTo(state.raceTo ?? DEFAULT_RACE_TO) : undefined
+  const sweepOrder =
+    mode === 'chase' && sorted.length === 3 ? normalizeSweepOrder(state.sweepOrder) : undefined
   return {
     ...state,
     mode,
@@ -120,6 +135,7 @@ export function hydrateState(state: MatchState): MatchState {
     currentIndex,
     concessionFromId: state.concessionFromId ?? null,
     raceTo,
+    sweepOrder,
   }
 }
 
@@ -238,6 +254,14 @@ export function formatSettlement(preview: WinPreview): string {
   return `${names}各赔 ${formatAmount(each)} 分，共 +${formatAmount(preview.amount)}`
 }
 
+function isSweepWin(state: MatchState, preview: WinPreview): boolean {
+  return (
+    state.playerCount === 3 &&
+    !preview.doubled &&
+    (preview.winType === 'bigGold' || preview.winType === 'goldenNine')
+  )
+}
+
 export function applyAction(
   state: MatchState,
   action: Exclude<Action, { kind: 'undo' }>,
@@ -262,9 +286,19 @@ export function applyAction(
         for (const pay of preview.payers) {
           transfer(next, preview.winnerId, pay.loserId, pay.amount)
         }
-        const { shang } = getRoles(hydrateState(state), preview.winnerId)
-        const orderLoser = preview.doubled ? preview.loserId : shang.id
-        next.shotOrder = orderAfterWin(next, preview.winnerId, orderLoser)
+        const before = hydrateState(state)
+        if (isSweepWin(before, preview)) {
+          next.shotOrder = orderAfterSweep(
+            before,
+            preview.winnerId,
+            before.sweepOrder ?? 'keep',
+            now + next.seq * 1_000_003,
+          )
+        } else {
+          const { shang } = getRoles(before, preview.winnerId)
+          const orderLoser = preview.doubled ? preview.loserId : shang.id
+          next.shotOrder = orderAfterWin(before, preview.winnerId, orderLoser)
+        }
       }
       next.currentIndex = 0
       next.concessionActive = false

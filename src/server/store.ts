@@ -113,6 +113,7 @@ export class MatchStore {
     config?: Parameters<typeof createMatchState>[0]['config']
     mode?: Parameters<typeof createMatchState>[0]['mode']
     raceTo?: number
+    sweepOrder?: Parameters<typeof createMatchState>[0]['sweepOrder']
   }): MatchState {
     const id = randomUUID()
     let code = makeCode()
@@ -128,6 +129,7 @@ export class MatchStore {
       config: input.config,
       mode: input.mode,
       raceTo: input.raceTo,
+      sweepOrder: input.sweepOrder,
     })
     this.db
       .prepare(

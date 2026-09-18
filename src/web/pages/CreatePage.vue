@@ -17,6 +17,18 @@
       <input v-model="names[i]" :placeholder="seatHint(i)" />
     </div>
 
+    <div v-if="kind === 'chase3'" class="field">
+      <label>大金 / 黄金九通吃后，二杆与三杆</label>
+      <div class="segment triple">
+        <button :class="{ active: sweepOrder === 'keep' }" @click="sweepOrder = 'keep'">保持不变</button>
+        <button :class="{ active: sweepOrder === 'rotate' }" @click="sweepOrder = 'rotate'">轮换</button>
+        <button :class="{ active: sweepOrder === 'random' }" @click="sweepOrder = 'random'">随机</button>
+      </div>
+      <p class="muted sweep-hint">
+        赢家继续开大杆。二杆、三杆可保持不变（默认）、对换轮换，或每局随机。
+      </p>
+    </div>
+
     <template v-if="kind === 'eight'">
       <div class="card legend">
         <h2>抢 {{ raceTo }} 局</h2>
@@ -69,7 +81,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { DEFAULT_POINTS, RACE_PRESETS } from '@engine'
+import { DEFAULT_POINTS, RACE_PRESETS, type SweepOrder } from '@engine'
 import { createMatch } from '../api.ts'
 
 type Kind = 'chase2' | 'chase3' | 'eight'
@@ -83,6 +95,7 @@ const error = ref('')
 const points = reactive({ ...DEFAULT_POINTS })
 const raceTo = ref(7)
 const racePresets = RACE_PRESETS
+const sweepOrder = ref<SweepOrder>('keep')
 
 const pointFields = [
   { key: 'foul', label: '犯规' },
@@ -119,6 +132,7 @@ async function submit() {
       points: eight ? undefined : { ...points },
       mode: eight ? 'eight' : 'chase',
       raceTo: eight ? Number(raceTo.value) : undefined,
+      sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
     })
     router.replace(`/m/${state.code}`)
   } catch (err) {
@@ -184,5 +198,8 @@ async function submit() {
 }
 .segment.race button {
   font-variant-numeric: tabular-nums;
+}
+.sweep-hint {
+  margin: 8px 0 0;
 }
 </style>

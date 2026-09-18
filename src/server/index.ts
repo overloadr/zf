@@ -50,6 +50,7 @@ async function main() {
       points?: Record<string, number>
       mode?: 'chase' | 'eight'
       raceTo?: number
+      sweepOrder?: 'keep' | 'rotate' | 'random'
     }
     try {
       const state = store.create({
@@ -57,6 +58,7 @@ async function main() {
         config: body.points ? { points: body.points as never } : undefined,
         mode: body.mode,
         raceTo: body.raceTo,
+        sweepOrder: body.sweepOrder,
       })
       return reply.code(201).send({ state })
     } catch (err) {

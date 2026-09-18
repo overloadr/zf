@@ -1,4 +1,4 @@
-import type { FoulType, MatchState, WinType } from './types.ts'
+import type { FoulType, MatchState, SweepOrder, WinType } from './types.ts'
 
 export const WIN_LABELS: Record<WinType, string> = {
   normal: '普胜',
@@ -44,4 +44,10 @@ export function seatLabel(playerCount: 2 | 3, seat: number): string {
 export function matchKindLabel(state: Pick<MatchState, 'mode' | 'playerCount' | 'raceTo'>): string {
   if (state.mode === 'eight') return `中八 · 抢${state.raceTo ?? 7}`
   return `${state.playerCount}人追分`
+}
+
+export const SWEEP_ORDER_LABELS: Record<SweepOrder, string> = {
+  keep: '保持不变',
+  rotate: '轮换',
+  random: '随机',
 }

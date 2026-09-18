@@ -2,6 +2,8 @@ export type PlayerCount = 2 | 3
 
 export type MatchMode = 'chase' | 'eight'
 
+export type SweepOrder = 'keep' | 'rotate' | 'random'
+
 export type WinType =
   | 'normal'
   | 'smallGold'
@@ -52,6 +54,7 @@ export interface MatchState {
   status: MatchStatus
   config: RuleConfig
   raceTo?: number
+  sweepOrder?: SweepOrder
   createdAt: number
   updatedAt: number
   seq: number

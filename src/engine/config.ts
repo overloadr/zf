@@ -1,4 +1,4 @@
-import type { PointTable, RuleConfig } from './types.ts'
+import type { PointTable, RuleConfig, SweepOrder } from './types.ts'
 
 /** 北方常见追分：犯规1、普胜4、小金7、大金10；黄金九与普胜同为4分 */
 export const DEFAULT_POINTS: PointTable = {
@@ -28,6 +28,12 @@ export const EIGHT_WIN_TYPES = ['normal', 'clear', 'breakClear'] as const
 
 export const DEFAULT_RACE_TO = 7
 export const RACE_PRESETS = [5, 7, 9, 11, 13] as const
+export const SWEEP_ORDERS = ['keep', 'rotate', 'random'] as const
+
+export function normalizeSweepOrder(value?: string): SweepOrder {
+  if (value === 'rotate' || value === 'random') return value
+  return 'keep'
+}
 
 export function isEightMode(state: { mode?: string }): boolean {
   return state.mode === 'eight'
