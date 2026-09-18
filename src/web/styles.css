@@ -77,6 +77,7 @@ button {
   max-width: 520px;
   margin: 0 auto;
   padding: calc(18px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+  overflow-x: hidden;
 }
 
 .topbar {

@@ -10,11 +10,15 @@
       <div class="dates">
         <div class="field">
           <label for="history-from">开始日期</label>
-          <input id="history-from" v-model="fromDate" type="date" />
+          <div class="date-box">
+            <input id="history-from" v-model="fromDate" type="date" />
+          </div>
         </div>
         <div class="field">
           <label for="history-to">结束日期</label>
-          <input id="history-to" v-model="toDate" type="date" />
+          <div class="date-box">
+            <input id="history-to" v-model="toDate" type="date" />
+          </div>
         </div>
       </div>
       <div class="grid-2">
@@ -198,14 +202,56 @@ function when(at: number) {
 .filters {
   padding: 14px 14px 4px;
   margin-bottom: 8px;
+  overflow: hidden;
 }
 .dates {
   display: grid;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 .dates .field {
   min-width: 0;
+  max-width: 100%;
   margin-bottom: 10px;
+}
+.date-box {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+}
+.date-box input[type='date'] {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 48px;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.date-box input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+}
+.date-box input[type='date']::-webkit-datetime-edit,
+.date-box input[type='date']::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.date-box input[type='date']::-webkit-calendar-picker-indicator {
+  margin: 0 0 0 6px;
+  padding: 0;
+  flex-shrink: 0;
 }
 .filters .grid-2 {
   margin-bottom: 10px;
