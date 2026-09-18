@@ -24,7 +24,7 @@
       </div>
       <div class="who">{{ card.player.name }}</div>
       <div class="info">
-        <div class="name-row">
+        <div class="status">
           <span class="tag" :class="card.tag">{{ card.cue }}</span>
           <span v-if="card.shooting" class="live">击球</span>
           <span v-if="selectedId === card.player.id" class="picked">已选</span>
@@ -36,11 +36,11 @@
           <span>普胜 {{ card.stats.wins.normal }}</span>
           <span>小金 {{ card.stats.wins.smallGold }}</span>
           <span>大金 {{ card.stats.wins.bigGold }}</span>
-          <span>黄金九 {{ card.stats.wins.goldenNine }}</span>
+          <span>金九 {{ card.stats.wins.goldenNine }}</span>
           <span>让杆普胜 {{ card.stats.wins.concession }}</span>
           <span>让杆小金 {{ card.stats.wins.concessionSmallGold }}</span>
-          <span>普通犯规 {{ card.stats.fouls.normal }}</span>
-          <span>让杆犯规 {{ card.stats.fouls.concession }}</span>
+          <span>犯规 {{ card.stats.fouls.normal }}</span>
+          <span>让犯 {{ card.stats.fouls.concession }}</span>
           <span>让杆 {{ card.stats.concessionsGiven }}</span>
         </div>
       </div>
@@ -148,18 +148,19 @@ function signed(n: number) {
 .board {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   position: relative;
   z-index: 2;
+  padding: 4px 2px;
 }
 .person {
   display: grid;
-  grid-template-columns: minmax(3.2em, 4.8em) minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
+  grid-template-columns: 4.2em minmax(0, 1fr) 4.8em;
+  align-items: stretch;
+  gap: 8px 10px;
   width: 100%;
-  min-height: 112px;
-  padding: 14px 14px;
+  height: 108px;
+  padding: 10px 12px;
   border-radius: 22px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.28);
@@ -170,6 +171,7 @@ function signed(n: number) {
   -webkit-user-select: none;
   position: relative;
   isolation: isolate;
+  box-sizing: border-box;
 }
 .person.shooting {
   border-color: rgba(230, 195, 106, 0.28);
@@ -216,29 +218,37 @@ function signed(n: number) {
   z-index: 1;
 }
 .who {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  align-self: start;
+  padding-top: 2px;
   font-size: 22px;
   font-weight: 800;
   color: var(--gold);
   text-align: center;
-  line-height: 1.2;
+  line-height: 1.15;
   word-break: break-all;
-  padding-top: 6px;
 }
 .info {
+  display: grid;
+  grid-template-rows: 22px minmax(0, 1fr);
+  gap: 6px;
   min-width: 0;
+  min-height: 0;
   pointer-events: none;
 }
-.name-row {
+.status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.name {
-  font-size: 18px;
-  font-weight: 800;
+  gap: 5px;
+  height: 22px;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 .tag {
+  flex-shrink: 0;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -246,6 +256,7 @@ function signed(n: number) {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--muted);
+  white-space: nowrap;
 }
 .tag.break {
   background: rgba(230, 195, 106, 0.22);
@@ -256,44 +267,55 @@ function signed(n: number) {
   color: var(--ok);
 }
 .live {
+  flex-shrink: 0;
   font-size: 11px;
   color: var(--gold-2);
+  white-space: nowrap;
 }
 .picked {
-  font-size: 12px;
+  flex-shrink: 0;
+  font-size: 11px;
   font-weight: 800;
   color: #1b1404;
   background: var(--gold);
   border-radius: 999px;
-  padding: 3px 10px;
+  padding: 2px 8px;
   box-shadow: 0 0 10px rgba(230, 195, 106, 0.55);
 }
 .stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  margin-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr) minmax(0, 1.2fr);
+  grid-template-rows: repeat(3, 1fr);
+  align-content: center;
+  gap: 2px 6px;
+  margin: 0;
+  min-height: 0;
 }
 .stats span {
   font-size: 11px;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 999px;
-  padding: 2px 7px;
+  background: none;
+  border-radius: 0;
+  padding: 0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .score-col {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 0;
+  min-width: 0;
 }
 .score {
-  font-size: 42px;
+  font-size: 30px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  min-width: 1.4em;
+  min-width: 2.2em;
   text-align: right;
   pointer-events: none;
 }
@@ -306,6 +328,7 @@ function signed(n: number) {
   pointer-events: auto;
 }
 .streak {
+  flex-shrink: 0;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
