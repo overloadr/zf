@@ -136,9 +136,30 @@ async function main() {
     socket.send(
       JSON.stringify({ type: 'match', state: record.state, events: record.events }),
     )
-    socket.on('message', (raw) => {
+    const beat = setInterval(() => {
+      if (socket.readyState === 1) {
+        try {
+          socket.ping()
+        } catch {
+          /* ignore */
+        }
+      }
+    }, 25_000)
+    const stopBeat = () => clearInterval(beat)
+    socket.on('close', stopBeat)
+    socket.on('error', stopBeat)
+    socket.on('message', (raw: Buffer | ArrayBuffer | string) => {
       try {
-        const msg = JSON.parse(String(raw)) as { action?: Action; expectedSeq?: number }
+        const msg = JSON.parse(String(raw)) as {
+          type?: string
+          t?: number
+          action?: Action
+          expectedSeq?: number
+        }
+        if (msg.type === 'ping') {
+          socket.send(JSON.stringify({ type: 'pong', t: msg.t ?? Date.now() }))
+          return
+        }
         if (!msg.action) return
         const next = store.apply(code, msg.action, msg.expectedSeq)
         hub.broadcast(code, next)
@@ -165,6 +186,12 @@ async function main() {
   }
 
   await app.listen({ port: PORT, host: HOST })
+  const server = app.server as typeof app.server & {
+    keepAliveTimeout: number
+    headersTimeout: number
+  }
+  server.keepAliveTimeout = 65_000
+  server.headersTimeout = 66_000
 }
 
 function parseMs(value?: string): number | undefined {

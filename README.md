@@ -25,6 +25,8 @@ npm start
 
 Ubuntu 24.04 部署见 [deploy/README.md](deploy/README.md)。
 
+微信小程序版见同级目录 [zf-mp/README.md](../zf-mp/README.md)，与本服务共用后端。
+
 ## 记分规则（默认 1-4-7-10，开局可改分值）
 
 北方常见四球追分固定分：

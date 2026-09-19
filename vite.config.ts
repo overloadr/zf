@@ -12,6 +12,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,ico,webmanifest}'],
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
+        runtimeCaching: [
+          {
+            urlPattern: /\/api\//,
+            handler: 'NetworkOnly',
+          },
+        ],
       },
       manifest: {
         name: '追分记分',

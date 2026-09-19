@@ -54,7 +54,7 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-HTTPS 用 certbot 即可，记得 WebSocket 需要 `Upgrade` 头（样例配置已包含）。
+HTTPS 用 certbot 即可。WebSocket 必须走独立的 `location /ws`（样例已拆开，不要把 `Connection: upgrade` 套到 `/api`）。改完后执行 `sudo nginx -t && sudo systemctl reload nginx`。
 
 ## 6. 本机开发
 

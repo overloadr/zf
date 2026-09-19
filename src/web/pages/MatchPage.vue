@@ -4,7 +4,7 @@
       <button class="btn btn-ghost" @click="$router.push('/')">大厅</button>
       <div class="center">
         <div class="code">{{ code }}</div>
-        <p class="sub">{{ connected ? '实时同步中' : '重连中…' }}</p>
+        <p class="sub">{{ connected ? '实时同步中' : '正在恢复连接…' }}</p>
       </div>
       <button class="btn btn-ghost" @click="shareOpen = true">分享</button>
     </header>
@@ -109,13 +109,13 @@ import {
 import ActionPad from '../components/ActionPad.vue'
 import PlayerBoard from '../components/PlayerBoard.vue'
 import Sheet from '../components/Sheet.vue'
-import { ApiError, postAction } from '../api.ts'
+import { ApiError, NetworkError, postAction } from '../api.ts'
 import { useMatchSync } from '../composables/useMatchSync.ts'
 import { useWakeLock } from '../composables/useWakeLock.ts'
 
 const route = useRoute()
 const code = computed(() => String(route.params.code).toUpperCase())
-const { state, events, connected, error, reload } = useMatchSync(code)
+const { state, events, connected, error, reload, applyRecord } = useMatchSync(code)
 useWakeLock()
 
 const selectedId = ref('')
@@ -125,6 +125,7 @@ const renameValue = ref('')
 const shareOpen = ref(false)
 const notice = ref('')
 const busy = ref(false)
+let busyToken = 0
 
 watch(
   () => state.value?.id,
@@ -182,25 +183,31 @@ function vibrate() {
 
 async function run(action: Action) {
   if (!state.value || busy.value) return
+  const token = ++busyToken
   busy.value = true
+  const watch = window.setTimeout(() => {
+    if (busyToken === token) busy.value = false
+  }, 10_000)
   try {
     const record = await postAction(code.value, action, state.value.seq)
-    state.value = record.state
-    events.value = record.events
+    applyRecord(record)
     error.value = ''
-    selectedId.value = currentShooter(hydrateState(record.state)).id
+    const live = state.value ?? record.state
+    selectedId.value = currentShooter(hydrateState(live)).id
     vibrate()
   } catch (err) {
     if (err instanceof ApiError) {
       error.value = err.message
-      if (err.state) state.value = err.state
-      if (err.events) events.value = err.events
+      applyRecord(err)
+    } else if (err instanceof NetworkError) {
+      error.value = err.message
     } else {
       error.value = err instanceof Error ? err.message : '操作失败'
     }
     await reload().catch(() => undefined)
   } finally {
-    busy.value = false
+    window.clearTimeout(watch)
+    if (busyToken === token) busy.value = false
     pendingWin.value = null
   }
 }

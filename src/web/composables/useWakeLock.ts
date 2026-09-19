@@ -14,10 +14,12 @@ export function useWakeLock() {
   onMounted(() => {
     void request()
     document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', onVis)
   })
 
   onUnmounted(() => {
     document.removeEventListener('visibilitychange', onVis)
+    window.removeEventListener('pageshow', onVis)
     void lock?.release()
   })
 

@@ -1,4 +1,9 @@
 import type { Action, MatchEvent, MatchState, MatchStats, NamedStats } from '@engine'
+import {
+  fetchWithRetry,
+  isTransientNetworkError,
+  REQUEST_TIMEOUT_MS,
+} from './net.ts'
 
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
@@ -26,6 +31,20 @@ async function parse<T>(res: Response): Promise<T> {
   return data
 }
 
+async function request<T>(
+  url: string,
+  init?: RequestInit,
+  opts?: { timeoutMs?: number; retries?: number },
+): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  const retries = opts?.retries ?? (method === 'GET' ? 1 : 0)
+  const res = await fetchWithRetry(url, init, {
+    timeoutMs: opts?.timeoutMs ?? REQUEST_TIMEOUT_MS,
+    retries,
+  })
+  return parse<T>(res)
+}
+
 export async function listMatches(
   status: 'live' | 'ended' | 'all' = 'all',
   range?: { from?: number; to?: number },
@@ -33,7 +52,7 @@ export async function listMatches(
   const params = new URLSearchParams({ status })
   if (range?.from != null) params.set('from', String(range.from))
   if (range?.to != null) params.set('to', String(range.to))
-  return parse<{ matches: MatchState[] }>(await fetch(`/api/matches?${params}`))
+  return request<{ matches: MatchState[] }>(`/api/matches?${params}`)
 }
 
 export async function createMatch(body: {
@@ -43,45 +62,67 @@ export async function createMatch(body: {
   raceTo?: number
   sweepOrder?: 'keep' | 'rotate' | 'random'
 }) {
-  return parse<{ state: MatchState }>(
-    await fetch('/api/matches', {
+  return request<{ state: MatchState }>(
+    '/api/matches',
+    {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(body),
-    }),
+    },
   )
 }
 
 export async function getMatch(code: string) {
-  return parse<{ state: MatchState; events: MatchEvent[]; initial: MatchState }>(
-    await fetch(`/api/matches/${code}`),
+  return request<{ state: MatchState; events: MatchEvent[]; initial: MatchState }>(
+    `/api/matches/${code}`,
   )
 }
 
 export async function deleteMatch(code: string, username: string, password: string) {
-  return parse<{ ok: boolean; code: string }>(
-    await fetch(`/api/matches/${code}`, {
-      method: 'DELETE',
-      headers: jsonHeaders,
-      body: JSON.stringify({ username, password }),
-    }),
-  )
+  return request<{ ok: boolean; code: string }>(`/api/matches/${code}`, {
+    method: 'DELETE',
+    headers: jsonHeaders,
+    body: JSON.stringify({ username, password }),
+  })
 }
 
 export async function postAction(code: string, action: Action, expectedSeq: number) {
-  return parse<{ state: MatchState; events: MatchEvent[] }>(
-    await fetch(`/api/matches/${code}/actions`, {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({ action, expectedSeq }),
-    }),
-  )
+  const body = JSON.stringify({ action, expectedSeq })
+  const init: RequestInit = {
+    method: 'POST',
+    headers: jsonHeaders,
+    body,
+  }
+  try {
+    return await request<{ state: MatchState; events: MatchEvent[] }>(
+      `/api/matches/${code}/actions`,
+      init,
+    )
+  } catch (err) {
+    if (err instanceof ApiError || !isTransientNetworkError(err)) throw err
+    const record = await getMatch(code)
+    if (record.state.seq !== expectedSeq) return record
+    try {
+      return await request<{ state: MatchState; events: MatchEvent[] }>(
+        `/api/matches/${code}/actions`,
+        init,
+      )
+    } catch (retryErr) {
+      if (retryErr instanceof ApiError && retryErr.status === 409 && retryErr.state) {
+        return { state: retryErr.state, events: retryErr.events ?? [] }
+      }
+      throw retryErr
+    }
+  }
 }
 
 export async function getMatchStats(code: string) {
-  return parse<MatchStats>(await fetch(`/api/matches/${code}/stats`))
+  return request<MatchStats>(`/api/matches/${code}/stats`)
 }
 
 export async function getGlobalStats() {
-  return parse<{ players: NamedStats[]; matchCount: number }>(await fetch('/api/stats'))
+  return request<{ players: NamedStats[]; matchCount: number }>(`/api/stats`)
 }
+
+export { pingHealth } from './net.ts'
+export { NetworkError } from './net.ts'
