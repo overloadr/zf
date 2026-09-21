@@ -29,6 +29,28 @@
       </p>
     </div>
 
+    <div v-if="kind !== 'eight'" class="field">
+      <label>让杆翻倍</label>
+      <div class="segment">
+        <button :class="{ active: concessionDouble }" @click="concessionDouble = true">开启</button>
+        <button :class="{ active: !concessionDouble }" @click="concessionDouble = false">关闭</button>
+      </div>
+      <p class="muted sweep-hint">
+        开启后让杆由下家按双倍赔；关闭后仍由下家赔，但只计正常一倍。
+      </p>
+    </div>
+
+    <div class="field">
+      <label>房间密码（可选）</label>
+      <input
+        v-model="roomPassword"
+        type="password"
+        maxlength="32"
+        placeholder="不填则任何人都能用短码进入"
+        autocomplete="new-password"
+      />
+    </div>
+
     <template v-if="kind === 'eight'">
       <div class="field">
         <label>抢多少局</label>
@@ -63,7 +85,9 @@
         <h2>固定分（1-4-7-10）</h2>
         <p>犯规 1 · 普胜 4 · 小金 7 · 黄金九 4 · 大金 10</p>
         <p class="muted">
-          普胜/小金赢上家；大金、黄金九三人时两家各赔。让杆普胜、让杆小金由下家双倍赔。普通犯规赔上家 1 分，让杆犯规赔下家 1 分。小局赢后赢家开大杆，上局输家变二杆。
+          普胜/小金赢上家；大金、黄金九三人时两家各赔。{{
+            concessionDouble ? '让杆普胜、让杆小金由下家双倍赔。' : '让杆普胜、让杆小金由下家按一倍赔。'
+          }}普通犯规赔上家 1 分，让杆犯规赔下家 1 分。小局赢后赢家开大杆，上局输家变二杆。
         </p>
       </div>
       <button class="linkish" type="button" @click="advanced = !advanced">
@@ -97,6 +121,8 @@ const points = reactive({ ...DEFAULT_POINTS })
 const raceTo = ref(7)
 const racePresets = RACE_PRESETS
 const sweepOrder = ref<SweepOrder>('keep')
+const concessionDouble = ref(true)
+const roomPassword = ref('')
 
 const pointFields = [
   { key: 'foul', label: '犯规' },
@@ -134,6 +160,8 @@ async function submit() {
       mode: eight ? 'eight' : 'chase',
       raceTo: eight ? Number(raceTo.value) : undefined,
       sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
+      concessionDouble: eight ? undefined : concessionDouble.value,
+      password: roomPassword.value.trim() || undefined,
     })
     router.replace(`/m/${state.code}`)
   } catch (err) {

@@ -37,7 +37,7 @@
         :to="`/m/${m.code}`"
       >
         <div>
-          <div class="code">{{ m.code }}</div>
+          <div class="code">{{ m.code }}{{ m.hasPassword ? ' · 锁' : '' }}</div>
           <div class="names">{{ m.players.map((p) => p.name).join(' · ') }}</div>
         </div>
         <div class="muted">{{ matchKindLabel(m) }}</div>

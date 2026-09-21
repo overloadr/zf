@@ -17,6 +17,7 @@ export function openDatabase(dbPath = process.env.DB_PATH ?? path.join(defaultDi
       status TEXT NOT NULL,
       initial_state TEXT NOT NULL,
       snapshot TEXT NOT NULL,
+      password_hash TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -32,5 +33,9 @@ export function openDatabase(dbPath = process.env.DB_PATH ?? path.join(defaultDi
     CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_events_match ON events(match_id, seq);
   `)
+  const cols = db.prepare('PRAGMA table_info(matches)').all() as Array<{ name: string }>
+  if (!cols.some((col) => col.name === 'password_hash')) {
+    db.exec('ALTER TABLE matches ADD COLUMN password_hash TEXT')
+  }
   return db
 }

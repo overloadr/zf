@@ -39,6 +39,10 @@ export function isEightMode(state: { mode?: string }): boolean {
   return state.mode === 'eight'
 }
 
+export function concessionDoubleEnabled(state: { concessionDouble?: boolean }): boolean {
+  return state.concessionDouble !== false
+}
+
 export function isEightWinType(winType: string): winType is (typeof EIGHT_WIN_TYPES)[number] {
   return (EIGHT_WIN_TYPES as readonly string[]).includes(winType)
 }

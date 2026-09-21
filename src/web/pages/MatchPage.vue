@@ -11,6 +11,22 @@
 
     <p v-if="error" class="banner">{{ error }}</p>
 
+    <section v-if="locked" class="card gate">
+      <h3>本场设有房间密码</h3>
+      <p class="confirm-copy">输入密码后才能记分和同步。</p>
+      <div class="field">
+        <input
+          v-model="gatePassword"
+          type="password"
+          maxlength="32"
+          placeholder="房间密码"
+          autocomplete="current-password"
+          @keyup.enter="unlockRoom"
+        />
+      </div>
+      <button class="btn btn-gold btn-block" :disabled="unlocking" @click="unlockRoom">进入</button>
+    </section>
+
     <template v-if="state">
       <PlayerBoard
         :state="state"
@@ -29,6 +45,7 @@
           :points="state.config.points"
           :both-pay="state.playerCount === 3"
           :eight="isEight"
+          :concession-double="state.concessionDouble !== false"
           @win="onWin"
           @foul="onFoul"
           @undo="run({ kind: 'undo' })"
@@ -83,7 +100,13 @@
 
     <Sheet :open="shareOpen" @close="shareOpen = false">
       <h3>分享本场</h3>
-      <p class="confirm-copy">把短码发给别人，用另一部手机打开就能一起记分。</p>
+      <p class="confirm-copy">
+        {{
+          state?.hasPassword
+            ? '把短码和房间密码一起发给别人，用另一部手机打开后输入密码就能一起记分。'
+            : '把短码发给别人，用另一部手机打开就能一起记分。'
+        }}
+      </p>
       <div class="share-code">{{ code }}</div>
       <button class="btn btn-gold btn-block" @click="copyLink">复制链接</button>
     </Sheet>
@@ -115,7 +138,7 @@ import { useWakeLock } from '../composables/useWakeLock.ts'
 
 const route = useRoute()
 const code = computed(() => String(route.params.code).toUpperCase())
-const { state, events, connected, error, reload, applyRecord } = useMatchSync(code)
+const { state, events, connected, error, locked, reload, applyRecord, unlock } = useMatchSync(code)
 useWakeLock()
 
 const selectedId = ref('')
@@ -126,6 +149,8 @@ const shareOpen = ref(false)
 const notice = ref('')
 const busy = ref(false)
 let busyToken = 0
+const gatePassword = ref('')
+const unlocking = ref(false)
 
 watch(
   () => state.value?.id,
@@ -175,6 +200,19 @@ const pendingPreview = computed(() => {
 
 function selectPlayer(id: string) {
   selectedId.value = id
+}
+
+async function unlockRoom() {
+  unlocking.value = true
+  error.value = ''
+  try {
+    await unlock(gatePassword.value)
+    gatePassword.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '密码不对'
+  } finally {
+    unlocking.value = false
+  }
 }
 
 function vibrate() {
@@ -352,6 +390,10 @@ function time(at: number) {
   flex-shrink: 0;
 }
 h3 { margin: 4px 0 12px; }
+.gate {
+  padding: 16px;
+  margin-bottom: 12px;
+}
 .confirm-copy {
   color: var(--muted);
   margin: 0 0 16px;

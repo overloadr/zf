@@ -45,11 +45,11 @@
       <div class="row">
         <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concession')">
           让杆普胜
-          <small>+{{ points.normal * 2 }}</small>
+          <small>+{{ points.normal * concessionMul }}</small>
         </button>
         <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concessionSmallGold')">
           让杆小金
-          <small>+{{ points.smallGold * 2 }}</small>
+          <small>+{{ points.smallGold * concessionMul }}</small>
         </button>
       </div>
       <div class="row">
@@ -71,14 +71,18 @@
 
 <script setup lang="ts">
 import type { FoulType, PointTable, WinType } from '@engine'
+import { computed } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   enabled: boolean
   canUndo: boolean
   points: PointTable
   bothPay: boolean
   eight?: boolean
+  concessionDouble?: boolean
 }>()
+
+const concessionMul = computed(() => (props.concessionDouble === false ? 1 : 2))
 
 const emit = defineEmits<{
   win: [type: WinType]

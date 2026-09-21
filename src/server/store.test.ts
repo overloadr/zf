@@ -69,4 +69,21 @@ describe('MatchStore', () => {
     expect(s.getByCode(ended.code)).toBeNull()
     expect(s.list('ended')).toHaveLength(0)
   })
+
+  it('gates a passworded room and keeps concessionDouble', () => {
+    const s = store()
+    const created = s.create({
+      names: ['甲', '乙'],
+      concessionDouble: false,
+      password: 'secret',
+    })
+    expect(created.concessionDouble).toBe(false)
+    expect(created.hasPassword).toBe(true)
+    expect(() => s.assertAccess(created.code, '')).toThrow(/房间密码/)
+    expect(() => s.assertAccess(created.code, 'nope')).toThrow(/不对/)
+    s.assertAccess(created.code, 'secret')
+    const listed = s.list('live')[0]
+    expect(listed?.hasPassword).toBe(true)
+    expect(listed?.concessionDouble).toBe(false)
+  })
 })

@@ -51,6 +51,8 @@ export interface MatchState {
   currentIndex: number
   concessionActive: boolean
   concessionFromId: string | null
+  concessionDouble?: boolean
+  hasPassword?: boolean
   status: MatchStatus
   config: RuleConfig
   raceTo?: number
@@ -98,6 +100,7 @@ export interface WinPreview {
   amount: number
   payers: Payment[]
   doubled: boolean
+  concession: boolean
   winnerRacks?: number
   loserRacks?: number
   raceTo?: number

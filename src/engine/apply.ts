@@ -1,5 +1,6 @@
 import {
   DEFAULT_RACE_TO,
+  concessionDoubleEnabled,
   isEightMode,
   isEightWinType,
   mergeConfig,
@@ -67,6 +68,8 @@ export function createMatchState(opts: {
   mode?: MatchMode
   raceTo?: number
   sweepOrder?: SweepOrder
+  concessionDouble?: boolean
+  hasPassword?: boolean
   now?: number
 }): MatchState {
   const mode: MatchMode = opts.mode === 'eight' ? 'eight' : 'chase'
@@ -90,6 +93,7 @@ export function createMatchState(opts: {
   const raceTo = mode === 'eight' ? normalizeRaceTo(opts.raceTo ?? DEFAULT_RACE_TO) : undefined
   const sweepOrder =
     mode === 'chase' && count === 3 ? normalizeSweepOrder(opts.sweepOrder) : undefined
+  const concessionDouble = mode === 'chase' ? opts.concessionDouble !== false : undefined
   return {
     id: opts.id,
     code: opts.code.toUpperCase(),
@@ -100,6 +104,8 @@ export function createMatchState(opts: {
     currentIndex: 0,
     concessionActive: false,
     concessionFromId: null,
+    concessionDouble,
+    hasPassword: Boolean(opts.hasPassword),
     status: 'live',
     config: mergeConfig(opts.config),
     raceTo,
@@ -127,6 +133,7 @@ export function hydrateState(state: MatchState): MatchState {
     mode === 'eight' ? normalizeRaceTo(state.raceTo ?? DEFAULT_RACE_TO) : undefined
   const sweepOrder =
     mode === 'chase' && sorted.length === 3 ? normalizeSweepOrder(state.sweepOrder) : undefined
+  const concessionDouble = mode === 'chase' ? concessionDoubleEnabled(state) : undefined
   return {
     ...state,
     mode,
@@ -134,6 +141,8 @@ export function hydrateState(state: MatchState): MatchState {
     shotOrder,
     currentIndex,
     concessionFromId: state.concessionFromId ?? null,
+    concessionDouble,
+    hasPassword: Boolean(state.hasPassword),
     raceTo,
     sweepOrder,
   }
@@ -152,11 +161,12 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
   if (base === 'clear' || base === 'breakClear') {
     throw new RuleError('追分模式没有接清 / 炸清')
   }
-  const doubled = live.concessionActive || isConcessionWinType(winType)
+  const concessionPlay = live.concessionActive || isConcessionWinType(winType)
+  const doubled = concessionPlay && concessionDoubleEnabled(live)
   const unit = live.config.points[base]
   const each = roundAmount(unit * (doubled ? 2 : 1))
   let payers: Payment[]
-  if (doubled) {
+  if (concessionPlay) {
     const from = live.concessionFromId
       ? live.players.find((p) => p.id === live.concessionFromId) ?? xia
       : xia
@@ -172,7 +182,7 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
   }
   const recordType: WinType = isConcessionWinType(winType)
     ? winType
-    : doubled && winType === 'normal'
+    : concessionPlay && winType === 'normal'
       ? 'concession'
       : base
   const amount = roundAmount(payers.reduce((sum, p) => sum + p.amount, 0))
@@ -186,6 +196,7 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
     amount,
     payers,
     doubled,
+    concession: concessionPlay,
   }
 }
 
@@ -199,6 +210,7 @@ function previewEightWin(state: MatchState, winType: WinType, playerId?: string)
   if (!opponent) throw new RuleError('中八需要两名玩家')
   const raceTo = state.raceTo ?? DEFAULT_RACE_TO
   const winnerRacks = ben.score + 1
+  const doubled = false
   return {
     winType,
     winnerId: ben.id,
@@ -207,7 +219,8 @@ function previewEightWin(state: MatchState, winType: WinType, playerId?: string)
     loserName: opponent.name,
     amount: 1,
     payers: [{ loserId: opponent.id, loserName: opponent.name, amount: 1 }],
-    doubled: false,
+    doubled,
+    concession: false,
     winnerRacks,
     loserRacks: opponent.score,
     raceTo,
@@ -296,7 +309,7 @@ export function applyAction(
           )
         } else {
           const { shang } = getRoles(before, preview.winnerId)
-          const orderLoser = preview.doubled ? preview.loserId : shang.id
+          const orderLoser = preview.concession ? preview.loserId : shang.id
           next.shotOrder = orderAfterWin(before, preview.winnerId, orderLoser)
         }
       }

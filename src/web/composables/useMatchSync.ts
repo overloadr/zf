@@ -1,7 +1,8 @@
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'
 import type { MatchEvent, MatchState } from '@engine'
-import { getMatch } from '../api.ts'
+import { ApiError, getMatch } from '../api.ts'
 import { pingHealth } from '../net.ts'
+import { clearRoomPassword, getRoomPassword, setRoomPassword } from '../roomAccess.ts'
 import { usePageResume } from './usePageResume.ts'
 
 const HEARTBEAT_MS = 20_000
@@ -22,6 +23,7 @@ export function useMatchSync(code: Ref<string>) {
   const events = ref<MatchEvent[]>([])
   const connected = ref(false)
   const error = ref('')
+  const locked = ref(false)
   let ws: WebSocket | null = null
   let reconnectTimer: number | undefined
   let heartbeatTimer: number | undefined
@@ -41,9 +43,32 @@ export function useMatchSync(code: Ref<string>) {
   }
 
   async function load() {
-    const record = await getMatch(code.value)
-    applyRecord(record)
-    return record
+    try {
+      const record = await getMatch(code.value)
+      locked.value = false
+      applyRecord(record)
+      return record
+    } catch (err) {
+      if (err instanceof ApiError && err.needPassword) {
+        locked.value = true
+        dropSocket()
+        stopTimers()
+      }
+      throw err
+    }
+  }
+
+  async function unlock(password: string) {
+    const value = password.trim()
+    if (!value) throw new Error('请输入房间密码')
+    setRoomPassword(code.value, value)
+    try {
+      await load()
+    } catch (err) {
+      clearRoomPassword(code.value)
+      throw err
+    }
+    connect()
   }
 
   function stopTimers() {
@@ -108,7 +133,7 @@ export function useMatchSync(code: Ref<string>) {
   }
 
   function scheduleReconnect() {
-    if (disposed || reconnectTimer) return
+    if (disposed || reconnectTimer || locked.value) return
     if (document.visibilityState !== 'visible') return
     reconnectTimer = window.setTimeout(() => {
       reconnectTimer = undefined
@@ -118,7 +143,7 @@ export function useMatchSync(code: Ref<string>) {
   }
 
   function connect() {
-    if (disposed) return
+    if (disposed || locked.value) return
     if (document.visibilityState === 'hidden') return
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       return
@@ -126,7 +151,10 @@ export function useMatchSync(code: Ref<string>) {
     dropSocket()
     const myGen = ++gen
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    const socket = new WebSocket(`${proto}://${location.host}/ws?code=${encodeURIComponent(code.value)}`)
+    const pass = getRoomPassword(code.value)
+    const query = new URLSearchParams({ code: code.value })
+    if (pass) query.set('password', pass)
+    const socket = new WebSocket(`${proto}://${location.host}/ws?${query}`)
     ws = socket
     socket.onopen = () => {
       if (myGen !== gen || ws !== socket) {
@@ -150,7 +178,14 @@ export function useMatchSync(code: Ref<string>) {
       }
       if (msg.type === 'pong') return
       applyRecord(msg)
-      if (msg.type === 'error') error.value = msg.error ?? '同步失败'
+      if (msg.type === 'error') {
+        error.value = msg.error ?? '同步失败'
+        if ((msg as { needPassword?: boolean }).needPassword) {
+          locked.value = true
+          dropSocket()
+          stopTimers()
+        }
+      }
       if (msg.type === 'conflict' && msg.error) error.value = msg.error
     }
     socket.onerror = () => {
@@ -175,7 +210,7 @@ export function useMatchSync(code: Ref<string>) {
   }
 
   function resume(stale: boolean) {
-    if (disposed) return
+    if (disposed || locked.value) return
     void pingHealth()
     if (stale) {
       void load().catch(() => undefined)
@@ -209,6 +244,11 @@ export function useMatchSync(code: Ref<string>) {
       await load()
       connect()
     } catch (err) {
+      if (err instanceof ApiError && err.needPassword) {
+        locked.value = true
+        error.value = err.message
+        return
+      }
       error.value = err instanceof Error ? err.message : '加载失败'
       scheduleReconnect()
     }
@@ -221,5 +261,5 @@ export function useMatchSync(code: Ref<string>) {
     dropSocket()
   })
 
-  return { state, events, connected, error, reload: load, applyRecord }
+  return { state, events, connected, error, locked, reload: load, applyRecord, unlock }
 }

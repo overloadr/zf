@@ -4,6 +4,7 @@ import {
   isTransientNetworkError,
   REQUEST_TIMEOUT_MS,
 } from './net.ts'
+import { roomPasswordHeaders, setRoomPassword } from './roomAccess.ts'
 
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
@@ -13,6 +14,7 @@ export class ApiError extends Error {
     public status: number,
     public state?: MatchState,
     public events?: MatchEvent[],
+    public needPassword = false,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -24,11 +26,22 @@ async function parse<T>(res: Response): Promise<T> {
     error?: string
     state?: MatchState
     events?: MatchEvent[]
+    needPassword?: boolean
   } & T
   if (!res.ok) {
-    throw new ApiError(data.error || '请求失败', res.status, data.state, data.events)
+    throw new ApiError(
+      data.error || '请求失败',
+      res.status,
+      data.state,
+      data.events,
+      Boolean(data.needPassword),
+    )
   }
   return data
+}
+
+function headersFor(code?: string): Record<string, string> {
+  return { ...jsonHeaders, ...(code ? roomPasswordHeaders(code) : {}) }
 }
 
 async function request<T>(
@@ -61,8 +74,10 @@ export async function createMatch(body: {
   mode?: 'chase' | 'eight'
   raceTo?: number
   sweepOrder?: 'keep' | 'rotate' | 'random'
+  concessionDouble?: boolean
+  password?: string
 }) {
-  return request<{ state: MatchState }>(
+  const result = await request<{ state: MatchState }>(
     '/api/matches',
     {
       method: 'POST',
@@ -70,11 +85,16 @@ export async function createMatch(body: {
       body: JSON.stringify(body),
     },
   )
+  if (body.password && result.state?.code) {
+    setRoomPassword(result.state.code, body.password)
+  }
+  return result
 }
 
 export async function getMatch(code: string) {
   return request<{ state: MatchState; events: MatchEvent[]; initial: MatchState }>(
     `/api/matches/${code}`,
+    { headers: headersFor(code) },
   )
 }
 
@@ -90,7 +110,7 @@ export async function postAction(code: string, action: Action, expectedSeq: numb
   const body = JSON.stringify({ action, expectedSeq })
   const init: RequestInit = {
     method: 'POST',
-    headers: jsonHeaders,
+    headers: headersFor(code),
     body,
   }
   try {
@@ -117,7 +137,7 @@ export async function postAction(code: string, action: Action, expectedSeq: numb
 }
 
 export async function getMatchStats(code: string) {
-  return request<MatchStats>(`/api/matches/${code}/stats`)
+  return request<MatchStats>(`/api/matches/${code}/stats`, { headers: headersFor(code) })
 }
 
 export async function getGlobalStats() {

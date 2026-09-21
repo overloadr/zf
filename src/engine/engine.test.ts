@@ -44,6 +44,8 @@ describe('createMatchState', () => {
     const s = three()
     expect(s.mode).toBe('chase')
     expect(s.sweepOrder).toBe('keep')
+    expect(s.concessionDouble).toBe(true)
+    expect(s.hasPassword).toBe(false)
     expect(s.config.points).toEqual({
       foul: 1,
       normal: 4,
@@ -192,6 +194,36 @@ describe('3-player chase', () => {
     expect(preview.amount).toBe(14)
     expect(preview.payers).toHaveLength(1)
     expect(preview.loserName).toBe('李四')
+  })
+
+  it('关闭让杆翻倍时由下家按一倍赔', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      concessionDouble: false,
+      now: 1,
+    })
+    expect(s0.concessionDouble).toBe(false)
+    const preview = previewWin(s0, 'concession')
+    expect(preview.winType).toBe('concession')
+    expect(preview.concession).toBe(true)
+    expect(preview.doubled).toBe(false)
+    expect(preview.loserName).toBe('李四')
+    expect(preview.amount).toBe(4)
+    const { state } = applyAction(s0, { kind: 'win', winType: 'concession' }, 2)
+    expect(state.players.find((p) => p.name === '张三')?.score).toBe(4)
+    expect(state.players.find((p) => p.name === '李四')?.score).toBe(-4)
+    expect(state.players.find((p) => p.name === '王五')?.score).toBe(0)
+    expect(state.shotOrder.map((id) => state.players.find((p) => p.id === id)!.name)).toEqual([
+      '张三',
+      '李四',
+      '王五',
+    ])
+    const gold = previewWin(s0, 'concessionSmallGold')
+    expect(gold.amount).toBe(7)
+    const afterStart = applyAction(s0, { kind: 'startConcession' }, 2).state
+    expect(previewWin(afterStart, 'normal').amount).toBe(4)
   })
 
   it('普通犯规赔上家 1 分并轮转', () => {

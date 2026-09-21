@@ -12,9 +12,16 @@ import {
   RuleError,
 } from '../engine/index.ts'
 import type Database from 'better-sqlite3'
+import {
+  hashRoomPassword,
+  normalizeRoomPassword,
+  RoomAuthError,
+  verifyRoomPassword,
+} from './room-password.ts'
 
-function parseState(raw: string): MatchState {
-  return hydrateState(JSON.parse(raw) as MatchState)
+function parseState(raw: string, hasPassword = false): MatchState {
+  const state = hydrateState(JSON.parse(raw) as MatchState)
+  return { ...state, hasPassword: hasPassword || Boolean(state.hasPassword) }
 }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -68,24 +75,28 @@ export class MatchStore {
       where.push('updated_at <= ?')
       params.push(opts.to)
     }
-    const sql = `SELECT snapshot FROM matches${
+    const sql = `SELECT snapshot, password_hash FROM matches${
       where.length ? ` WHERE ${where.join(' AND ')}` : ''
     } ORDER BY updated_at DESC`
-    const rows = this.db.prepare(sql).all(...params) as Array<{ snapshot: string }>
-    return rows.map((r) => parseState(r.snapshot))
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      snapshot: string
+      password_hash: string | null
+    }>
+    return rows.map((r) => parseState(r.snapshot, Boolean(r.password_hash)))
   }
 
   getByCode(code: string): MatchRecord | null {
     const row = this.db
-      .prepare('SELECT id, initial_state, snapshot FROM matches WHERE code = ?')
+      .prepare('SELECT id, initial_state, snapshot, password_hash FROM matches WHERE code = ?')
       .get(code.toUpperCase()) as
-      | { id: string; initial_state: string; snapshot: string }
+      | { id: string; initial_state: string; snapshot: string; password_hash: string | null }
       | undefined
     if (!row) return null
+    const locked = Boolean(row.password_hash)
     const events = this.listEvents(row.id)
     return {
-      initial: parseState(row.initial_state),
-      state: parseState(row.snapshot),
+      initial: parseState(row.initial_state, locked),
+      state: parseState(row.snapshot, locked),
       events,
     }
   }
@@ -99,11 +110,16 @@ export class MatchStore {
 
   allRecords(): MatchRecord[] {
     const rows = this.db
-      .prepare('SELECT id, initial_state, snapshot FROM matches ORDER BY updated_at DESC')
-      .all() as Array<{ id: string; initial_state: string; snapshot: string }>
+      .prepare('SELECT id, initial_state, snapshot, password_hash FROM matches ORDER BY updated_at DESC')
+      .all() as Array<{
+      id: string
+      initial_state: string
+      snapshot: string
+      password_hash: string | null
+    }>
     return rows.map((row) => ({
-      initial: parseState(row.initial_state),
-      state: parseState(row.snapshot),
+      initial: parseState(row.initial_state, Boolean(row.password_hash)),
+      state: parseState(row.snapshot, Boolean(row.password_hash)),
       events: this.listEvents(row.id),
     }))
   }
@@ -114,6 +130,8 @@ export class MatchStore {
     mode?: Parameters<typeof createMatchState>[0]['mode']
     raceTo?: number
     sweepOrder?: Parameters<typeof createMatchState>[0]['sweepOrder']
+    concessionDouble?: boolean
+    password?: string
   }): MatchState {
     const id = randomUUID()
     let code = makeCode()
@@ -122,6 +140,7 @@ export class MatchStore {
       if (!exists) break
       code = makeCode()
     }
+    const password = normalizeRoomPassword(input.password)
     const state = createMatchState({
       id,
       code,
@@ -130,11 +149,13 @@ export class MatchStore {
       mode: input.mode,
       raceTo: input.raceTo,
       sweepOrder: input.sweepOrder,
+      concessionDouble: input.concessionDouble,
+      hasPassword: Boolean(password),
     })
     this.db
       .prepare(
-        `INSERT INTO matches (id, code, player_count, status, initial_state, snapshot, created_at, updated_at)
-         VALUES (@id, @code, @player_count, @status, @initial_state, @snapshot, @created_at, @updated_at)`,
+        `INSERT INTO matches (id, code, player_count, status, initial_state, snapshot, password_hash, created_at, updated_at)
+         VALUES (@id, @code, @player_count, @status, @initial_state, @snapshot, @password_hash, @created_at, @updated_at)`,
       )
       .run({
         id: state.id,
@@ -143,10 +164,26 @@ export class MatchStore {
         status: state.status,
         initial_state: JSON.stringify(state),
         snapshot: JSON.stringify(state),
+        password_hash: password ? hashRoomPassword(password) : null,
         created_at: state.createdAt,
         updated_at: state.updatedAt,
       })
     return state
+  }
+
+  getPasswordHash(code: string): string | null {
+    const row = this.db
+      .prepare('SELECT password_hash FROM matches WHERE code = ?')
+      .get(code.toUpperCase()) as { password_hash: string | null } | undefined
+    return row?.password_hash ?? null
+  }
+
+  assertAccess(code: string, password?: string): void {
+    const hash = this.getPasswordHash(code)
+    if (!hash) return
+    const given = (password ?? '').trim()
+    if (!given) throw new RoomAuthError('请输入房间密码')
+    if (!verifyRoomPassword(given, hash)) throw new RoomAuthError('房间密码不对')
   }
 
   apply(code: string, action: Action, expectedSeq?: number): MatchRecord {
