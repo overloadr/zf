@@ -18,6 +18,8 @@ function emptyWins(): Record<WinType, number> {
     goldenNine: 0,
     concession: 0,
     concessionSmallGold: 0,
+    worldGold: 0,
+    concessionWorldGold: 0,
     clear: 0,
     breakClear: 0,
   }

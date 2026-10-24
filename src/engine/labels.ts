@@ -7,12 +7,22 @@ export const WIN_LABELS: Record<WinType, string> = {
   goldenNine: '黄金九',
   concession: '让杆普胜',
   concessionSmallGold: '让杆小金',
+  worldGold: '全球大金',
+  concessionWorldGold: '让杆全球大金',
   clear: '接清',
   breakClear: '炸清',
 }
 
 export function isConcessionWinType(winType: WinType): boolean {
-  return winType === 'concession' || winType === 'concessionSmallGold'
+  return (
+    winType === 'concession' ||
+    winType === 'concessionSmallGold' ||
+    winType === 'concessionWorldGold'
+  )
+}
+
+export function isWorldGoldType(winType: WinType): boolean {
+  return winType === 'worldGold' || winType === 'concessionWorldGold'
 }
 
 export const FOUL_LABELS: Record<FoulType, string> = {

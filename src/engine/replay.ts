@@ -40,5 +40,8 @@ function actionWithActor(event: MatchEvent): Exclude<MatchEvent['action'], { kin
   if (action.kind === 'startConcession' && !action.playerId && event.playerId) {
     return { ...action, playerId: event.playerId }
   }
+  if (action.kind === 'adjustScore' && !action.playerId && event.playerId) {
+    return { ...action, playerId: event.playerId }
+  }
   return action
 }

@@ -75,6 +75,7 @@ export async function createMatch(body: {
   raceTo?: number
   sweepOrder?: 'keep' | 'rotate' | 'random'
   concessionDouble?: boolean
+  worldGold?: boolean
   password?: string
 }) {
   const result = await request<{ state: MatchState }>(

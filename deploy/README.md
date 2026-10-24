@@ -47,6 +47,8 @@ sudo sqlite3 /var/lib/zf/zf.db ".backup '/var/backups/zf-$(date +%F).db'"
 
 ## 5. Nginx 反代
 
+首次未上 HTTPS 时：
+
 ```bash
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/zf
 sudo ln -sf /etc/nginx/sites-available/zf /etc/nginx/sites-enabled/zf
@@ -54,7 +56,16 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-HTTPS 用 certbot 即可。WebSocket 必须走独立的 `location /ws`（样例已拆开，不要把 `Connection: upgrade` 套到 `/api`）。改完后执行 `sudo nginx -t && sudo systemctl reload nginx`。
+已经用 Certbot 签过证书的机器，**不要整文件覆盖**。证书相关行（`listen 443 ssl`、`ssl_certificate*`、80 端口跳转）必须保留，只改 `location`：
+
+- `location /ws`：WebSocket，需要 `Upgrade`，超时 3600s
+- `location /`：页面和 `/api`，不要带 `Connection: upgrade`，超时 30s
+
+改完后：
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
 
 ## 6. 本机开发
 

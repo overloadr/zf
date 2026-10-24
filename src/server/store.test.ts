@@ -86,4 +86,14 @@ describe('MatchStore', () => {
     expect(listed?.hasPassword).toBe(true)
     expect(listed?.concessionDouble).toBe(false)
   })
+
+  it('keeps worldGold on create', () => {
+    const s = store()
+    const created = s.create({
+      names: ['甲', '乙', '丙'],
+      worldGold: true,
+    })
+    expect(created.worldGold).toBe(true)
+    expect(s.list('live')[0]?.worldGold).toBe(true)
+  })
 })

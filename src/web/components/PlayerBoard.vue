@@ -8,6 +8,7 @@
       :class="{
         selected: selectedId === card.player.id,
         shooting: card.shooting,
+        world: worldGold,
         hot: card.streak?.kind === 'hot',
         cold: card.streak?.kind === 'cold',
         [`streak-${card.streak?.level}`]: !!card.streak,
@@ -32,7 +33,7 @@
             {{ card.streak.label }}
           </span>
         </div>
-        <div class="stats" :class="{ eight: eight }">
+        <div class="stats" :class="{ eight: eight, world: worldGold }">
           <template v-if="eight">
             <span>普胜 {{ card.stats.wins.normal }}</span>
             <span>接清 {{ card.stats.wins.clear }}</span>
@@ -45,6 +46,8 @@
             <span>金九 {{ card.stats.wins.goldenNine }}</span>
             <span>让杆普胜 {{ card.stats.wins.concession }}</span>
             <span>让杆小金 {{ card.stats.wins.concessionSmallGold }}</span>
+            <span v-if="worldGold">全球 {{ card.stats.wins.worldGold }}</span>
+            <span v-if="worldGold">让全球 {{ card.stats.wins.concessionWorldGold }}</span>
             <span>犯规 {{ card.stats.fouls.normal }}</span>
             <span>让犯 {{ card.stats.fouls.concession }}</span>
             <span>让杆 {{ card.stats.concessionsGiven }}</span>
@@ -56,7 +59,14 @@
           {{ displayScore(card.player.score) }}
         </div>
         <span v-if="eight" class="race-cap">/{{ state.raceTo ?? 7 }}</span>
-        <span class="rename" @click.stop="rename(card.player.id)">改名</span>
+        <div class="ops">
+          <span
+            v-if="!eight && state.status === 'live'"
+            class="rename"
+            @click.stop="adjust(card.player.id)"
+          >加减</span>
+          <span class="rename" @click.stop="rename(card.player.id)">改名</span>
+        </div>
       </div>
     </button>
   </section>
@@ -88,6 +98,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   pick: [playerId: string]
   rename: [playerId: string]
+  adjust: [playerId: string]
 }>()
 
 function pick(playerId: string) {
@@ -98,8 +109,13 @@ function rename(playerId: string) {
   emit('rename', playerId)
 }
 
+function adjust(playerId: string) {
+  emit('adjust', playerId)
+}
+
 const live = computed(() => hydrateState(props.state))
 const eight = computed(() => isEightMode(live.value))
+const worldGold = computed(() => !eight.value && Boolean(live.value.worldGold))
 
 const statsById = computed(() => {
   const stats = computeMatchStats(live.value, props.events)
@@ -188,6 +204,9 @@ function scoreClass(n: number) {
   position: relative;
   isolation: isolate;
   box-sizing: border-box;
+}
+.person.world {
+  height: 128px;
 }
 .person.shooting {
   border-color: rgba(230, 195, 106, 0.28);
@@ -312,6 +331,9 @@ function scoreClass(n: number) {
   grid-template-rows: 1fr;
   align-content: end;
 }
+.stats.world {
+  grid-template-rows: repeat(4, 1fr);
+}
 .stats span {
   font-size: 11px;
   color: var(--muted);
@@ -347,10 +369,16 @@ function scoreClass(n: number) {
 }
 .score.pos { color: var(--ok); }
 .score.neg { color: var(--danger); }
+.ops {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
 .rename {
   font-size: 12px;
   color: var(--muted);
-  padding: 6px 4px;
+  padding: 4px 4px;
   pointer-events: auto;
 }
 .streak {

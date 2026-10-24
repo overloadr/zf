@@ -37,9 +37,13 @@
         </button>
       </div>
       <div class="row">
-        <button class="btn goldish wide" :disabled="!enabled" @click="emit('win', 'goldenNine')">
+        <button class="btn goldish" :class="{ wide: !worldGold }" :disabled="!enabled" @click="emit('win', 'goldenNine')">
           黄金九
           <small>+{{ points.goldenNine }}{{ bothPay ? '×2家' : '' }}</small>
+        </button>
+        <button v-if="worldGold" class="btn goldish" :disabled="!enabled" @click="emit('win', 'worldGold')">
+          全球大金
+          <small>+{{ points.bigGold }} 赢上家</small>
         </button>
       </div>
       <div class="row">
@@ -50,6 +54,12 @@
         <button class="btn btn-ok" :disabled="!enabled" @click="emit('win', 'concessionSmallGold')">
           让杆小金
           <small>+{{ points.smallGold * concessionMul }}</small>
+        </button>
+      </div>
+      <div v-if="worldGold" class="row">
+        <button class="btn btn-ok wide" :disabled="!enabled" @click="emit('win', 'concessionWorldGold')">
+          让杆全球大金
+          <small>+{{ points.bigGold * concessionMul }} 赢下家</small>
         </button>
       </div>
       <div class="row">
@@ -64,7 +74,8 @@
       </div>
     </template>
     <div class="row">
-      <button class="btn btn-ghost span" :disabled="!canUndo" @click="emit('undo')">撤销</button>
+      <button v-if="!eight" class="btn btn-ghost" @click="emit('adjust')">加减分</button>
+      <button class="btn btn-ghost" :class="{ span: eight }" :disabled="!canUndo" @click="emit('undo')">撤销</button>
     </div>
   </section>
 </template>
@@ -80,6 +91,7 @@ const props = defineProps<{
   bothPay: boolean
   eight?: boolean
   concessionDouble?: boolean
+  worldGold?: boolean
 }>()
 
 const concessionMul = computed(() => (props.concessionDouble === false ? 1 : 2))
@@ -88,6 +100,7 @@ const emit = defineEmits<{
   win: [type: WinType]
   foul: [type: FoulType]
   undo: []
+  adjust: []
 }>()
 </script>
 

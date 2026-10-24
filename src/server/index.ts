@@ -56,6 +56,7 @@ async function main() {
       raceTo?: number
       sweepOrder?: 'keep' | 'rotate' | 'random'
       concessionDouble?: boolean
+      worldGold?: boolean
       password?: string
     }
     try {
@@ -66,6 +67,7 @@ async function main() {
         raceTo: body.raceTo,
         sweepOrder: body.sweepOrder,
         concessionDouble: body.concessionDouble,
+        worldGold: body.worldGold,
         password: body.password,
       })
       return reply.code(201).send({ state })

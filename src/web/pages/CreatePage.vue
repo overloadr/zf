@@ -40,6 +40,17 @@
       </p>
     </div>
 
+    <div v-if="kind !== 'eight'" class="field">
+      <label>全球算大金</label>
+      <div class="segment">
+        <button :class="{ active: worldGold }" @click="worldGold = true">开启</button>
+        <button :class="{ active: !worldGold }" @click="worldGold = false">关闭</button>
+      </div>
+      <p class="muted sweep-hint">
+        开启后可记全球大金：只赢上家 10 分。让杆全球大金只赢下家，开启让杆翻倍时为 20 分。大金仍通吃。
+      </p>
+    </div>
+
     <div class="field">
       <label>房间密码（可选）</label>
       <input
@@ -87,6 +98,11 @@
         <p class="muted">
           普胜/小金赢上家；大金、黄金九三人时两家各赔。{{
             concessionDouble ? '让杆普胜、让杆小金由下家双倍赔。' : '让杆普胜、让杆小金由下家按一倍赔。'
+          }}{{
+            worldGold
+              ? '全球大金只赢上家 10 分；让杆全球大金只赢下家' +
+                (concessionDouble ? ' 20 分。' : ' 10 分。')
+              : ''
           }}普通犯规赔上家 1 分，让杆犯规赔下家 1 分。小局赢后赢家开大杆，上局输家变二杆。
         </p>
       </div>
@@ -122,6 +138,7 @@ const raceTo = ref(7)
 const racePresets = RACE_PRESETS
 const sweepOrder = ref<SweepOrder>('keep')
 const concessionDouble = ref(true)
+const worldGold = ref(false)
 const roomPassword = ref('')
 
 const pointFields = [
@@ -161,6 +178,7 @@ async function submit() {
       raceTo: eight ? Number(raceTo.value) : undefined,
       sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
       concessionDouble: eight ? undefined : concessionDouble.value,
+      worldGold: eight ? undefined : worldGold.value,
       password: roomPassword.value.trim() || undefined,
     })
     router.replace(`/m/${state.code}`)

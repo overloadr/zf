@@ -34,6 +34,7 @@
         :selected-id="selectedId"
         @pick="selectPlayer"
         @rename="openRename"
+        @adjust="openAdjust"
       />
 
       <p class="hint">{{ hintText }}</p>
@@ -46,9 +47,11 @@
           :both-pay="state.playerCount === 3"
           :eight="isEight"
           :concession-double="state.concessionDouble !== false"
+          :world-gold="!!state.worldGold"
           @win="onWin"
           @foul="onFoul"
           @undo="run({ kind: 'undo' })"
+          @adjust="openAdjust()"
         />
       </div>
       <div v-else class="card ended">{{ endedText }}</div>
@@ -98,6 +101,54 @@
       </div>
     </Sheet>
 
+    <Sheet :open="adjustOpen" @close="closeAdjust">
+      <h3>协商加减分{{ adjustPlayer ? ` · ${adjustPlayer.name}` : '' }}</h3>
+      <p v-if="adjustPlayer" class="confirm-copy">
+        当前 {{ adjustPlayer.score > 0 ? '+' : '' }}{{ formatAmount(adjustPlayer.score) }} 分，用于个性协商，不改变杆序。
+      </p>
+      <p v-else class="confirm-copy">先点上面的玩家，或在下方选择。</p>
+      <div v-if="!adjustPlayer && state" class="adjust-picks">
+        <button
+          v-for="p in state.players"
+          :key="p.id"
+          class="btn btn-ghost"
+          @click="openAdjust(p.id)"
+        >
+          {{ p.name }}
+        </button>
+      </div>
+      <div class="adjust-presets">
+        <button
+          v-for="n in adjustPlus"
+          :key="`p${n}`"
+          class="btn btn-ok"
+          :disabled="!adjustPlayer"
+          @click="applyAdjust(n)"
+        >
+          +{{ n }}
+        </button>
+      </div>
+      <div class="adjust-presets">
+        <button
+          v-for="n in adjustMinus"
+          :key="`m${n}`"
+          class="btn btn-danger"
+          :disabled="!adjustPlayer"
+          @click="applyAdjust(n)"
+        >
+          {{ n }}
+        </button>
+      </div>
+      <div class="field">
+        <label>自定义分数（正加负减）</label>
+        <input v-model="adjustDelta" type="number" inputmode="numeric" placeholder="例如 5 或 -3" />
+      </div>
+      <div class="grid-2">
+        <button class="btn btn-ghost" @click="closeAdjust">取消</button>
+        <button class="btn btn-gold" :disabled="!adjustPlayer" @click="confirmAdjust">确认</button>
+      </div>
+    </Sheet>
+
     <Sheet :open="shareOpen" @close="shareOpen = false">
       <h3>分享本场</h3>
       <p class="confirm-copy">
@@ -121,6 +172,7 @@ import { useRoute } from 'vue-router'
 import {
   currentShooter,
   hydrateState,
+  formatAmount,
   formatSettlement,
   isEightMode,
   previewWin,
@@ -145,6 +197,11 @@ const selectedId = ref('')
 const pendingWin = ref<WinType | null>(null)
 const renameId = ref('')
 const renameValue = ref('')
+const adjustOpen = ref(false)
+const adjustId = ref('')
+const adjustDelta = ref('')
+const adjustPlus = [1, 4, 10]
+const adjustMinus = [-1, -4, -10]
 const shareOpen = ref(false)
 const notice = ref('')
 const busy = ref(false)
@@ -231,7 +288,10 @@ async function run(action: Action) {
     applyRecord(record)
     error.value = ''
     const live = state.value ?? record.state
-    selectedId.value = currentShooter(hydrateState(live)).id
+    selectedId.value =
+      action.kind === 'adjustScore' && action.playerId
+        ? action.playerId
+        : currentShooter(hydrateState(live)).id
     vibrate()
   } catch (err) {
     if (err instanceof ApiError) {
@@ -279,6 +339,42 @@ function saveRename() {
   if (!renameId.value) return
   void run({ kind: 'rename', playerId: renameId.value, name: renameValue.value })
   renameId.value = ''
+}
+
+const adjustPlayer = computed(() => state.value?.players.find((p) => p.id === adjustId.value) ?? null)
+
+function openAdjust(playerId?: string) {
+  if (isEight.value) return
+  const id = playerId || selectedId.value
+  if (id) {
+    selectedId.value = id
+    adjustId.value = id
+  } else {
+    adjustId.value = ''
+  }
+  adjustDelta.value = ''
+  adjustOpen.value = true
+}
+
+function closeAdjust() {
+  adjustOpen.value = false
+  adjustDelta.value = ''
+}
+
+function applyAdjust(delta: number) {
+  if (!adjustId.value || !delta) return
+  void run({ kind: 'adjustScore', playerId: adjustId.value, delta })
+}
+
+function confirmAdjust() {
+  const delta = Number(adjustDelta.value)
+  if (!adjustId.value) return
+  if (!Number.isFinite(delta) || delta === 0) {
+    error.value = '请输入不为 0 的分数'
+    return
+  }
+  closeAdjust()
+  void run({ kind: 'adjustScore', playerId: adjustId.value, delta })
 }
 
 function toggleEnd() {
@@ -408,5 +504,12 @@ h3 { margin: 4px 0 12px; }
   margin: 4px 0 16px;
   user-select: all;
   -webkit-user-select: all;
+}
+.adjust-picks,
+.adjust-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 12px;
 }
 </style>

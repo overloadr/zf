@@ -49,6 +49,8 @@
           <span>黄金九 {{ p.wins.goldenNine }}</span>
           <span>让杆普胜 {{ p.wins.concession }}</span>
           <span>让杆小金 {{ p.wins.concessionSmallGold }}</span>
+          <span>全球大金 {{ p.wins.worldGold }}</span>
+          <span>让杆全球大金 {{ p.wins.concessionWorldGold }}</span>
           <span>普通犯规 {{ p.fouls.normal }}</span>
           <span>让杆犯规 {{ p.fouls.concession }}</span>
           <span>让杆 {{ p.concessionsGiven }}</span>

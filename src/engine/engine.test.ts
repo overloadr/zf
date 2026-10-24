@@ -45,6 +45,7 @@ describe('createMatchState', () => {
     expect(s.mode).toBe('chase')
     expect(s.sweepOrder).toBe('keep')
     expect(s.concessionDouble).toBe(true)
+    expect(s.worldGold).toBe(false)
     expect(s.hasPassword).toBe(false)
     expect(s.config.points).toEqual({
       foul: 1,
@@ -224,6 +225,139 @@ describe('3-player chase', () => {
     expect(gold.amount).toBe(7)
     const afterStart = applyAction(s0, { kind: 'startConcession' }, 2).state
     expect(previewWin(afterStart, 'normal').amount).toBe(4)
+  })
+
+  it('未开启全球算大金时不能记全球金', () => {
+    const s0 = three()
+    expect(s0.worldGold).toBe(false)
+    expect(() => previewWin(s0, 'worldGold')).toThrow(RuleError)
+    expect(() => applyAction(s0, { kind: 'win', winType: 'concessionWorldGold' }, 2)).toThrow(
+      /全球算大金/,
+    )
+  })
+
+  it('全球大金只赢上家 10 分，不通吃', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      worldGold: true,
+      now: 1,
+    })
+    expect(s0.worldGold).toBe(true)
+    const preview = previewWin(s0, 'worldGold')
+    expect(preview.winType).toBe('worldGold')
+    expect(preview.concession).toBe(false)
+    expect(preview.doubled).toBe(false)
+    expect(preview.amount).toBe(10)
+    expect(preview.payers).toHaveLength(1)
+    expect(preview.loserName).toBe('王五')
+    const { state, event } = applyAction(s0, { kind: 'win', winType: 'worldGold' }, 2)
+    expect(state.players.find((p) => p.name === '张三')?.score).toBe(10)
+    expect(state.players.find((p) => p.name === '王五')?.score).toBe(-10)
+    expect(state.players.find((p) => p.name === '李四')?.score).toBe(0)
+    expect(event.summary).toContain('全球大金')
+  })
+
+  it('让杆全球大金只赢下家，开启翻倍为 20 分', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      worldGold: true,
+      now: 1,
+    })
+    const preview = previewWin(s0, 'concessionWorldGold')
+    expect(preview.winType).toBe('concessionWorldGold')
+    expect(preview.concession).toBe(true)
+    expect(preview.doubled).toBe(true)
+    expect(preview.amount).toBe(20)
+    expect(preview.loserName).toBe('李四')
+    const { state } = applyAction(s0, { kind: 'win', winType: 'concessionWorldGold' }, 2)
+    expect(state.players.find((p) => p.name === '张三')?.score).toBe(20)
+    expect(state.players.find((p) => p.name === '李四')?.score).toBe(-20)
+    expect(state.players.find((p) => p.name === '王五')?.score).toBe(0)
+    expect(state.shotOrder.map((id) => state.players.find((p) => p.id === id)!.name)).toEqual([
+      '张三',
+      '李四',
+      '王五',
+    ])
+  })
+
+  it('关闭让杆翻倍时让杆全球大金由下家赔 10 分', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      worldGold: true,
+      concessionDouble: false,
+      now: 1,
+    })
+    const preview = previewWin(s0, 'concessionWorldGold')
+    expect(preview.amount).toBe(10)
+    expect(preview.doubled).toBe(false)
+    expect(preview.loserName).toBe('李四')
+  })
+
+  it('先让杆再点全球大金记为让杆全球大金', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['张三', '李四', '王五'],
+      worldGold: true,
+      now: 1,
+    })
+    const conceded = applyAction(s0, { kind: 'startConcession' }, 2).state
+    const preview = previewWin(conceded, 'worldGold')
+    expect(preview.winType).toBe('concessionWorldGold')
+    expect(preview.amount).toBe(20)
+    expect(preview.loserName).toBe('李四')
+  })
+
+  it('协商加减分不改变杆序，撤销可还原', () => {
+    const s0 = three()
+    const zhang = s0.players.find((p) => p.name === '张三')!
+    const order = [...s0.shotOrder]
+    const { state, event } = applyAction(
+      s0,
+      { kind: 'adjustScore', playerId: zhang.id, delta: 5 },
+      2,
+    )
+    expect(state.players.find((p) => p.name === '张三')?.score).toBe(5)
+    expect(state.players.find((p) => p.name === '李四')?.score).toBe(0)
+    expect(state.shotOrder).toEqual(order)
+    expect(state.currentIndex).toBe(s0.currentIndex)
+    expect(event.summary).toContain('协商 +5 分')
+    const down = applyAction(state, { kind: 'adjustScore', playerId: zhang.id, delta: -3 }, 3)
+    expect(down.state.players.find((p) => p.name === '张三')?.score).toBe(2)
+    const replayed = replay(s0, [
+      eventFrom({ state, event }),
+      eventFrom(down),
+      {
+        id: 'u1',
+        seq: 4,
+        at: 4,
+        action: { kind: 'undo' },
+        summary: '撤销',
+      },
+    ])
+    expect(replayed.players.find((p) => p.name === '张三')?.score).toBe(5)
+    expect(() => applyAction(s0, { kind: 'adjustScore', playerId: zhang.id, delta: 0 }, 2)).toThrow(
+      RuleError,
+    )
+  })
+
+  it('中八不支持协商加减分', () => {
+    const s0 = createMatchState({
+      id: 'x',
+      code: 'X',
+      names: ['甲', '乙'],
+      mode: 'eight',
+      now: 1,
+    })
+    expect(() =>
+      applyAction(s0, { kind: 'adjustScore', playerId: s0.players[0]!.id, delta: 1 }, 2),
+    ).toThrow(/中八/)
   })
 
   it('普通犯规赔上家 1 分并轮转', () => {

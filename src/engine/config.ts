@@ -20,6 +20,8 @@ export const WIN_TYPES = [
   'goldenNine',
   'concession',
   'concessionSmallGold',
+  'worldGold',
+  'concessionWorldGold',
   'clear',
   'breakClear',
 ] as const
@@ -41,6 +43,10 @@ export function isEightMode(state: { mode?: string }): boolean {
 
 export function concessionDoubleEnabled(state: { concessionDouble?: boolean }): boolean {
   return state.concessionDouble !== false
+}
+
+export function worldGoldEnabled(state: { worldGold?: boolean }): boolean {
+  return Boolean(state.worldGold)
 }
 
 export function isEightWinType(winType: string): winType is (typeof EIGHT_WIN_TYPES)[number] {

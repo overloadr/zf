@@ -11,6 +11,8 @@ export type WinType =
   | 'goldenNine'
   | 'concession'
   | 'concessionSmallGold'
+  | 'worldGold'
+  | 'concessionWorldGold'
   | 'clear'
   | 'breakClear'
 
@@ -18,7 +20,10 @@ export type FoulType = 'normal' | 'concession'
 
 export type EightWinType = 'normal' | 'clear' | 'breakClear'
 
-export type BaseWinType = Exclude<WinType, 'concession' | 'concessionSmallGold'>
+export type BaseWinType = Exclude<
+  WinType,
+  'concession' | 'concessionSmallGold' | 'worldGold' | 'concessionWorldGold'
+>
 
 export interface PointTable {
   foul: number
@@ -52,6 +57,7 @@ export interface MatchState {
   concessionActive: boolean
   concessionFromId: string | null
   concessionDouble?: boolean
+  worldGold?: boolean
   hasPassword?: boolean
   status: MatchStatus
   config: RuleConfig
@@ -68,6 +74,7 @@ export type Action =
   | { kind: 'startConcession'; playerId?: string }
   | { kind: 'cancelConcession' }
   | { kind: 'rename'; playerId: string; name: string }
+  | { kind: 'adjustScore'; playerId: string; delta: number }
   | { kind: 'endMatch' }
   | { kind: 'reopenMatch' }
   | { kind: 'undo' }

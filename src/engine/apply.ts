@@ -7,8 +7,9 @@ import {
   normalizeRaceTo,
   normalizeSweepOrder,
   RuleError,
+  worldGoldEnabled,
 } from './config.ts'
-import { FOUL_LABELS, WIN_LABELS, isConcessionWinType } from './labels.ts'
+import { FOUL_LABELS, WIN_LABELS, isConcessionWinType, isWorldGoldType } from './labels.ts'
 import {
   currentShooter,
   getRoles,
@@ -57,6 +58,7 @@ function others(state: MatchState, winnerId: string): Player[] {
 function baseWinType(winType: WinType): BaseWinType {
   if (winType === 'concession') return 'normal'
   if (winType === 'concessionSmallGold') return 'smallGold'
+  if (winType === 'worldGold' || winType === 'concessionWorldGold') return 'bigGold'
   return winType
 }
 
@@ -69,6 +71,7 @@ export function createMatchState(opts: {
   raceTo?: number
   sweepOrder?: SweepOrder
   concessionDouble?: boolean
+  worldGold?: boolean
   hasPassword?: boolean
   now?: number
 }): MatchState {
@@ -94,6 +97,7 @@ export function createMatchState(opts: {
   const sweepOrder =
     mode === 'chase' && count === 3 ? normalizeSweepOrder(opts.sweepOrder) : undefined
   const concessionDouble = mode === 'chase' ? opts.concessionDouble !== false : undefined
+  const worldGold = mode === 'chase' ? Boolean(opts.worldGold) : undefined
   return {
     id: opts.id,
     code: opts.code.toUpperCase(),
@@ -105,6 +109,7 @@ export function createMatchState(opts: {
     concessionActive: false,
     concessionFromId: null,
     concessionDouble,
+    worldGold,
     hasPassword: Boolean(opts.hasPassword),
     status: 'live',
     config: mergeConfig(opts.config),
@@ -134,6 +139,7 @@ export function hydrateState(state: MatchState): MatchState {
   const sweepOrder =
     mode === 'chase' && sorted.length === 3 ? normalizeSweepOrder(state.sweepOrder) : undefined
   const concessionDouble = mode === 'chase' ? concessionDoubleEnabled(state) : undefined
+  const worldGold = mode === 'chase' ? worldGoldEnabled(state) : undefined
   return {
     ...state,
     mode,
@@ -142,6 +148,7 @@ export function hydrateState(state: MatchState): MatchState {
     currentIndex,
     concessionFromId: state.concessionFromId ?? null,
     concessionDouble,
+    worldGold,
     hasPassword: Boolean(state.hasPassword),
     raceTo,
     sweepOrder,
@@ -157,6 +164,10 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
   }
   const actorId = playerId ?? currentShooter(live).id
   const { shang, ben, xia } = getRoles(live, actorId)
+  const world = isWorldGoldType(winType)
+  if (world && !worldGoldEnabled(live)) {
+    throw new RuleError('本场未开启全球算大金')
+  }
   const base = baseWinType(winType)
   if (base === 'clear' || base === 'breakClear') {
     throw new RuleError('追分模式没有接清 / 炸清')
@@ -171,6 +182,8 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
       ? live.players.find((p) => p.id === live.concessionFromId) ?? xia
       : xia
     payers = [{ loserId: from.id, loserName: from.name, amount: each }]
+  } else if (world) {
+    payers = [{ loserId: shang.id, loserName: shang.name, amount: each }]
   } else if (base === 'bigGold' || base === 'goldenNine') {
     payers = others(live, ben.id).map((p) => ({
       loserId: p.id,
@@ -180,11 +193,15 @@ export function previewWin(state: MatchState, winType: WinType, playerId?: strin
   } else {
     payers = [{ loserId: shang.id, loserName: shang.name, amount: each }]
   }
-  const recordType: WinType = isConcessionWinType(winType)
-    ? winType
-    : concessionPlay && winType === 'normal'
-      ? 'concession'
-      : base
+  const recordType: WinType = world
+    ? concessionPlay
+      ? 'concessionWorldGold'
+      : 'worldGold'
+    : isConcessionWinType(winType)
+      ? winType
+      : concessionPlay && winType === 'normal'
+        ? 'concession'
+        : base
   const amount = roundAmount(payers.reduce((sum, p) => sum + p.amount, 0))
   const first = payers[0]
   return {
@@ -404,6 +421,29 @@ export function applyAction(
           action: { kind: 'rename', playerId: action.playerId, name },
           summary: `${old} 改名为 ${name}`,
           playerId: action.playerId,
+        },
+      }
+    }
+    case 'adjustScore': {
+      if (isEightMode(next)) throw new RuleError('中八请用局分，不支持协商加减分')
+      const delta = roundAmount(action.delta)
+      if (!Number.isFinite(delta) || delta === 0) {
+        throw new RuleError('请输入不为 0 的分数')
+      }
+      if (Math.abs(delta) > 999) throw new RuleError('单次加减分不能超过 999')
+      const player = next.players.find((p) => p.id === action.playerId)
+      if (!player) throw new RuleError('找不到该玩家')
+      player.score = roundAmount(player.score + delta)
+      const signed = delta > 0 ? `+${formatAmount(delta)}` : formatAmount(delta)
+      return {
+        state: next,
+        event: {
+          seq: next.seq,
+          at: now,
+          action: { kind: 'adjustScore', playerId: player.id, delta },
+          summary: `${player.name} 协商 ${signed} 分`,
+          amount: delta,
+          playerId: player.id,
         },
       }
     }

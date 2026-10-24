@@ -131,6 +131,7 @@ export class MatchStore {
     raceTo?: number
     sweepOrder?: Parameters<typeof createMatchState>[0]['sweepOrder']
     concessionDouble?: boolean
+    worldGold?: boolean
     password?: string
   }): MatchState {
     const id = randomUUID()
@@ -150,6 +151,7 @@ export class MatchStore {
       raceTo: input.raceTo,
       sweepOrder: input.sweepOrder,
       concessionDouble: input.concessionDouble,
+      worldGold: input.worldGold,
       hasPassword: Boolean(password),
     })
     this.db
