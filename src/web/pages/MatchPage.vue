@@ -140,8 +140,21 @@
         </button>
       </div>
       <div class="field">
-        <label>自定义分数（正加负减）</label>
-        <input v-model="adjustDelta" type="number" inputmode="numeric" placeholder="例如 5 或 -3" />
+        <label>自定义分数</label>
+        <div class="adjust-custom">
+          <div class="adjust-sign">
+            <button type="button" :class="{ active: adjustSign > 0 }" @click="adjustSign = 1">加</button>
+            <button type="button" :class="{ active: adjustSign < 0 }" @click="adjustSign = -1">减</button>
+          </div>
+          <input
+            v-model="adjustDelta"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            placeholder="输入分数"
+            autocomplete="off"
+          />
+        </div>
       </div>
       <div class="grid-2">
         <button class="btn btn-ghost" @click="closeAdjust">取消</button>
@@ -200,6 +213,7 @@ const renameValue = ref('')
 const adjustOpen = ref(false)
 const adjustId = ref('')
 const adjustDelta = ref('')
+const adjustSign = ref(1)
 const adjustPlus = [1, 4, 10]
 const adjustMinus = [-1, -4, -10]
 const shareOpen = ref(false)
@@ -293,6 +307,10 @@ async function run(action: Action) {
         ? action.playerId
         : currentShooter(hydrateState(live)).id
     vibrate()
+    if (action.kind === 'adjustScore') {
+      const last = record.events?.at(-1)
+      showNotice(last?.summary ?? '已按协商改分')
+    }
   } catch (err) {
     if (err instanceof ApiError) {
       error.value = err.message
@@ -353,26 +371,31 @@ function openAdjust(playerId?: string) {
     adjustId.value = ''
   }
   adjustDelta.value = ''
+  adjustSign.value = 1
   adjustOpen.value = true
 }
 
 function closeAdjust() {
   adjustOpen.value = false
   adjustDelta.value = ''
+  adjustSign.value = 1
 }
 
 function applyAdjust(delta: number) {
-  if (!adjustId.value || !delta) return
-  void run({ kind: 'adjustScore', playerId: adjustId.value, delta })
+  if (!adjustId.value || !delta || busy.value) return
+  const playerId = adjustId.value
+  closeAdjust()
+  void run({ kind: 'adjustScore', playerId, delta })
 }
 
 function confirmAdjust() {
-  const delta = Number(adjustDelta.value)
   if (!adjustId.value) return
-  if (!Number.isFinite(delta) || delta === 0) {
+  const mag = Math.abs(Number(String(adjustDelta.value).replace(/[^\d.]/g, '')))
+  if (!Number.isFinite(mag) || mag === 0) {
     error.value = '请输入不为 0 的分数'
     return
   }
+  const delta = mag * (adjustSign.value < 0 ? -1 : 1)
   closeAdjust()
   void run({ kind: 'adjustScore', playerId: adjustId.value, delta })
 }
@@ -511,5 +534,29 @@ h3 { margin: 4px 0 12px; }
   grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
   margin: 0 0 12px;
+}
+.adjust-custom {
+  display: grid;
+  grid-template-columns: 7.6em 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+.adjust-sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+}
+.adjust-sign button {
+  min-height: 40px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+}
+.adjust-sign button.active {
+  background: var(--gold);
+  color: #1b1404;
+  font-weight: 700;
 }
 </style>
