@@ -5,10 +5,9 @@ import type {
   MatchState,
 } from '../engine/index.ts'
 import {
-  applyAction,
+  commitAction,
   createMatchState,
   hydrateState,
-  replay,
   RuleError,
 } from '../engine/index.ts'
 import type Database from 'better-sqlite3'
@@ -132,13 +131,27 @@ export class MatchStore {
     sweepOrder?: Parameters<typeof createMatchState>[0]['sweepOrder']
     concessionDouble?: boolean
     worldGold?: boolean
+    localMode?: boolean
+    id?: string
+    code?: string
     password?: string
   }): MatchState {
-    const id = randomUUID()
-    let code = makeCode()
+    const id = input.localMode && input.id ? input.id : randomUUID()
+    let code = input.localMode && input.code ? String(input.code).toUpperCase() : makeCode()
+    if (!/^[A-Z0-9]{4,6}$/.test(code)) code = makeCode()
+    if (input.localMode && input.id) {
+      const sameId = this.db
+        .prepare('SELECT snapshot, password_hash FROM matches WHERE id = ?')
+        .get(input.id) as { snapshot: string; password_hash: string | null } | undefined
+      if (sameId) return parseState(sameId.snapshot, Boolean(sameId.password_hash))
+    }
     for (let i = 0; i < 20; i++) {
       const exists = this.db.prepare('SELECT 1 FROM matches WHERE code = ?').get(code)
       if (!exists) break
+      if (input.localMode && input.id) {
+        const row = this.getByCode(code)
+        if (row?.state.id === input.id) return row.state
+      }
       code = makeCode()
     }
     const password = normalizeRoomPassword(input.password)
@@ -152,6 +165,7 @@ export class MatchStore {
       sweepOrder: input.sweepOrder,
       concessionDouble: input.concessionDouble,
       worldGold: input.worldGold,
+      localMode: Boolean(input.localMode),
       hasPassword: Boolean(password),
     })
     this.db
@@ -192,41 +206,22 @@ export class MatchStore {
     const tx = this.db.transaction(() => {
       const current = this.getByCode(code)
       if (!current) throw new RuleError('找不到这场比赛')
+      if (current.state.localMode) {
+        throw new RuleError('本场为本地记分，请在原手机继续，有网后会自动上传')
+      }
       if (expectedSeq !== undefined && expectedSeq !== current.state.seq) {
         throw new ConflictError('比分已被其他设备更新，请核对后再记', current)
       }
 
       const now = Date.now()
-      const eventId = randomUUID()
-      let nextState: MatchState
-      let event: MatchEvent
-
-      if (action.kind === 'undo') {
-        if (current.events.length === 0) throw new RuleError('没有可撤销的记录')
-        nextState = replay(current.initial, [
-          ...current.events,
-          {
-            id: eventId,
-            seq: current.state.seq + 1,
-            at: now,
-            action: { kind: 'undo' },
-            summary: '撤销上一步',
-          },
-        ])
-        event = {
-          id: eventId,
-          seq: current.state.seq + 1,
-          at: now,
-          action: { kind: 'undo' },
-          summary: '撤销上一步',
-        }
-        nextState.seq = event.seq
-        nextState.updatedAt = now
-      } else {
-        const applied = applyAction(current.state, action, now)
-        nextState = applied.state
-        event = { id: eventId, ...applied.event }
-      }
+      const { state: nextState, event } = commitAction(
+        current.initial,
+        current.state,
+        current.events,
+        action,
+        now,
+        randomUUID(),
+      )
 
       this.db
         .prepare(
@@ -245,6 +240,52 @@ export class MatchStore {
         state: nextState,
         events: [...current.events, event],
       } satisfies MatchRecord
+    })
+    return tx()
+  }
+
+  syncLocal(code: string, incoming: MatchEvent[]): MatchRecord {
+    const tx = this.db.transaction(() => {
+      let current = this.getByCode(code)
+      if (!current) throw new RuleError('找不到这场比赛')
+      if (!current.state.localMode) throw new RuleError('联网局请用实时记分，不能整包同步')
+      const sorted = [...incoming].sort((a, b) => a.seq - b.seq)
+      for (const incomingEvent of sorted) {
+        if (!incomingEvent || !incomingEvent.action) continue
+        if (incomingEvent.seq <= current.state.seq) {
+          const existing = current.events.find((e) => e.seq === incomingEvent.seq)
+          if (existing && existing.id === incomingEvent.id) continue
+          throw new ConflictError('服务器记录与本机不一致，请核对本场', current)
+        }
+        if (incomingEvent.seq !== current.state.seq + 1) {
+          throw new ConflictError('同步事件不连续，请核对本场', current)
+        }
+        const { state: nextState, event } = commitAction(
+          current.initial,
+          current.state,
+          current.events,
+          incomingEvent.action,
+          incomingEvent.at || Date.now(),
+          incomingEvent.id || randomUUID(),
+        )
+        this.db
+          .prepare(
+            `INSERT INTO events (id, match_id, seq, payload, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+          )
+          .run(event.id, current.state.id, event.seq, JSON.stringify(event), event.at)
+        this.db
+          .prepare(
+            `UPDATE matches SET snapshot = ?, status = ?, updated_at = ? WHERE id = ?`,
+          )
+          .run(JSON.stringify(nextState), nextState.status, nextState.updatedAt, current.state.id)
+        current = {
+          initial: current.initial,
+          state: nextState,
+          events: [...current.events, event],
+        }
+      }
+      return current
     })
     return tx()
   }

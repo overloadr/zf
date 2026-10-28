@@ -36,7 +36,7 @@
     <div v-else class="list">
       <div v-for="m in matches" :key="m.id" class="card match-row history-row">
         <router-link class="main" :to="`/m/${m.code}`">
-          <div class="code">{{ m.code }}</div>
+          <div class="code">{{ m.code }}{{ m.localMode ? ' · 本地' : '' }}</div>
           <div class="names">{{ scoreLine(m) }}</div>
           <div class="muted">{{ matchKindLabel(m) }} · {{ when(m.updatedAt) }}</div>
         </router-link>
@@ -50,7 +50,8 @@
         删除后不可恢复。确认删除
         <strong>{{ pending?.code }}</strong>
         ？
-        <template v-if="needCreds">请输入管理员账号密码。</template>
+        <template v-if="localOnlyDelete">本场还未上传，只会从本机删除。</template>
+        <template v-else-if="needCreds">请输入管理员账号密码。</template>
         <template v-else>30 分钟内无需再次输入账号密码。</template>
       </p>
       <template v-if="needCreds">
@@ -80,6 +81,7 @@ import { formatAmount, matchKindLabel, type MatchState } from '@engine'
 import { clearAdminSession, readAdminSession, saveAdminSession } from '../adminSession.ts'
 import Sheet from '../components/Sheet.vue'
 import { ApiError, deleteMatch, listMatches } from '../api.ts'
+import { loadLocal, mergeMatchLists, removeLocal } from '../localMatch.ts'
 
 const matches = ref<MatchState[]>([])
 const fromDate = ref('')
@@ -94,6 +96,11 @@ const deleting = ref(false)
 const deleteError = ref('')
 
 const hasRange = computed(() => Boolean(fromDate.value || toDate.value))
+const localOnlyDelete = computed(() => {
+  if (!pending.value) return false
+  const rec = loadLocal(pending.value.code)
+  return Boolean(rec && !rec.registered)
+})
 
 onMounted(() => {
   void reload()
@@ -103,10 +110,19 @@ async function reload() {
   error.value = ''
   loading.value = true
   try {
-    const data = await listMatches('ended', rangeMs())
-    matches.value = data.matches
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    const range = rangeMs()
+    let server: MatchState[] = []
+    try {
+      const data = await listMatches('ended', range)
+      server = data.matches
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '加载失败'
+    }
+    matches.value = mergeMatchLists(server, 'ended').filter((m) => {
+      if (range.from != null && m.updatedAt < range.from) return false
+      if (range.to != null && m.updatedAt > range.to) return false
+      return true
+    })
   } finally {
     loading.value = false
   }
@@ -136,6 +152,11 @@ function resetRange() {
 function openDelete(match: MatchState) {
   pending.value = match
   deleteError.value = ''
+  const local = loadLocal(match.code)
+  if (local && !local.registered) {
+    needCreds.value = false
+    return
+  }
   const session = readAdminSession()
   if (session) {
     username.value = session.username
@@ -159,8 +180,14 @@ async function confirmDelete() {
   deleteError.value = ''
   deleting.value = true
   try {
-    await deleteMatch(pending.value.code, username.value, password.value)
-    saveAdminSession(username.value, password.value)
+    const rec = loadLocal(pending.value.code)
+    if (rec && !rec.registered) {
+      removeLocal(pending.value.code)
+    } else {
+      await deleteMatch(pending.value.code, username.value, password.value)
+      saveAdminSession(username.value, password.value)
+      removeLocal(pending.value.code)
+    }
     const code = pending.value.code
     pending.value = null
     matches.value = matches.value.filter((m) => m.code !== code)

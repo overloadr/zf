@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'
 import type { MatchEvent, MatchState } from '@engine'
 import { ApiError, getMatch } from '../api.ts'
+import { flushLocalMatch, loadLocal, pendingSync as isPendingSync } from '../localMatch.ts'
 import { pingHealth } from '../net.ts'
 import { clearRoomPassword, getRoomPassword, setRoomPassword } from '../roomAccess.ts'
 import { usePageResume } from './usePageResume.ts'
@@ -24,6 +25,8 @@ export function useMatchSync(code: Ref<string>) {
   const connected = ref(false)
   const error = ref('')
   const locked = ref(false)
+  const localMode = ref(false)
+  const pendingSync = ref(false)
   let ws: WebSocket | null = null
   let reconnectTimer: number | undefined
   let heartbeatTimer: number | undefined
@@ -36,13 +39,34 @@ export function useMatchSync(code: Ref<string>) {
   function applyRecord(record: { state?: MatchState; events?: MatchEvent[] }) {
     if (record.state && applyIfNewer(state.value, record.state)) {
       state.value = record.state
+      if (record.state.localMode && loadLocal(code.value)) localMode.value = true
       if (record.events) events.value = record.events
-      return
+    } else if (!record.state && record.events) {
+      events.value = record.events
     }
-    if (!record.state && record.events) events.value = record.events
+    if (localMode.value) refreshPending()
+  }
+
+  function refreshPending() {
+    pendingSync.value = isPendingSync(loadLocal(code.value))
+  }
+
+  async function flush() {
+    if (!localMode.value) return
+    await flushLocalMatch(code.value)
+    const rec = loadLocal(code.value)
+    if (rec) applyRecord({ state: rec.state, events: rec.events })
+    refreshPending()
   }
 
   async function load() {
+    if (localMode.value) {
+      const rec = loadLocal(code.value)
+      if (rec) applyRecord({ state: rec.state, events: rec.events })
+      refreshPending()
+      void flush()
+      return rec
+    }
     try {
       const record = await getMatch(code.value)
       locked.value = false
@@ -143,7 +167,7 @@ export function useMatchSync(code: Ref<string>) {
   }
 
   function connect() {
-    if (disposed || locked.value) return
+    if (disposed || locked.value || localMode.value) return
     if (document.visibilityState === 'hidden') return
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       return
@@ -211,6 +235,10 @@ export function useMatchSync(code: Ref<string>) {
 
   function resume(stale: boolean) {
     if (disposed || locked.value) return
+    if (localMode.value) {
+      void flush()
+      return
+    }
     void pingHealth()
     if (stale) {
       void load().catch(() => undefined)
@@ -228,6 +256,7 @@ export function useMatchSync(code: Ref<string>) {
   usePageResume(
     ({ stale }) => resume(stale),
     () => {
+      if (localMode.value) void flush()
       if (heartbeatTimer) {
         window.clearInterval(heartbeatTimer)
         heartbeatTimer = undefined
@@ -240,6 +269,14 @@ export function useMatchSync(code: Ref<string>) {
   )
 
   onMounted(async () => {
+    const rec = loadLocal(code.value)
+    if (rec?.state.localMode) {
+      localMode.value = true
+      applyRecord({ state: rec.state, events: rec.events })
+      refreshPending()
+      void flush()
+      return
+    }
     try {
       await load()
       connect()
@@ -255,11 +292,24 @@ export function useMatchSync(code: Ref<string>) {
   })
 
   onUnmounted(() => {
+    if (localMode.value) void flush()
     disposed = true
     gen += 1
     stopTimers()
     dropSocket()
   })
 
-  return { state, events, connected, error, locked, reload: load, applyRecord, unlock }
+  return {
+    state,
+    events,
+    connected,
+    error,
+    locked,
+    localMode,
+    pendingSync,
+    reload: load,
+    applyRecord,
+    unlock,
+    flush,
+  }
 }

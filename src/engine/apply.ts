@@ -72,6 +72,7 @@ export function createMatchState(opts: {
   sweepOrder?: SweepOrder
   concessionDouble?: boolean
   worldGold?: boolean
+  localMode?: boolean
   hasPassword?: boolean
   now?: number
 }): MatchState {
@@ -110,6 +111,7 @@ export function createMatchState(opts: {
     concessionFromId: null,
     concessionDouble,
     worldGold,
+    localMode: Boolean(opts.localMode),
     hasPassword: Boolean(opts.hasPassword),
     status: 'live',
     config: mergeConfig(opts.config),
@@ -149,6 +151,7 @@ export function hydrateState(state: MatchState): MatchState {
     concessionFromId: state.concessionFromId ?? null,
     concessionDouble,
     worldGold,
+    localMode: Boolean(state.localMode),
     hasPassword: Boolean(state.hasPassword),
     raceTo,
     sweepOrder,

@@ -96,4 +96,31 @@ describe('MatchStore', () => {
     expect(created.worldGold).toBe(true)
     expect(s.list('live')[0]?.worldGold).toBe(true)
   })
+
+  it('syncs a localMode match and rejects live actions', () => {
+    const s = store()
+    const created = s.create({
+      names: ['甲', '乙'],
+      localMode: true,
+      code: 'LCL1',
+      id: 'local-1',
+    })
+    expect(created.localMode).toBe(true)
+    expect(created.code).toBe('LCL1')
+    expect(() => s.apply(created.code, { kind: 'win', winType: 'normal' }, 0)).toThrow(/本地记分/)
+    const first = s.syncLocal(created.code, [
+      {
+        id: 'e1',
+        seq: 1,
+        at: 2,
+        action: { kind: 'win', winType: 'normal', playerId: created.players[0]!.id },
+        summary: '甲 普胜',
+      },
+    ])
+    expect(first.state.players[0]?.score).toBe(4)
+    expect(first.state.seq).toBe(1)
+    const again = s.syncLocal(created.code, first.events)
+    expect(again.state.seq).toBe(1)
+    expect(s.getByCode(created.code)?.state.seq).toBe(1)
+  })
 })

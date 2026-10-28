@@ -63,8 +63,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { formatAmount, type MatchStats } from '@engine'
+import { computeMatchStats, formatAmount, type MatchStats } from '@engine'
 import { ApiError, getMatchStats } from '../api.ts'
+import { loadLocal } from '../localMatch.ts'
 import { setRoomPassword } from '../roomAccess.ts'
 
 const route = useRoute()
@@ -75,6 +76,13 @@ const locked = ref(false)
 const gatePassword = ref('')
 
 async function load() {
+  const local = loadLocal(code.value)
+  if (local) {
+    stats.value = computeMatchStats(local.state, local.events)
+    locked.value = false
+    error.value = ''
+    return
+  }
   try {
     stats.value = await getMatchStats(code.value)
     locked.value = false

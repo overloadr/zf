@@ -76,6 +76,9 @@ export async function createMatch(body: {
   sweepOrder?: 'keep' | 'rotate' | 'random'
   concessionDouble?: boolean
   worldGold?: boolean
+  localMode?: boolean
+  id?: string
+  code?: string
   password?: string
 }) {
   const result = await request<{ state: MatchState }>(
@@ -90,6 +93,17 @@ export async function createMatch(body: {
     setRoomPassword(result.state.code, body.password)
   }
   return result
+}
+
+export async function syncMatch(code: string, events: MatchEvent[]) {
+  return request<{ state: MatchState; events: MatchEvent[]; initial: MatchState }>(
+    `/api/matches/${code}/sync`,
+    {
+      method: 'POST',
+      headers: headersFor(code),
+      body: JSON.stringify({ events }),
+    },
+  )
 }
 
 export async function getMatch(code: string) {

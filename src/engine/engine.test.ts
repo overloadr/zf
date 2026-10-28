@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyAction,
   collapseUndos,
+  commitAction,
   computeMatchStats,
   createMatchState,
   getRoles,
@@ -46,6 +47,7 @@ describe('createMatchState', () => {
     expect(s.sweepOrder).toBe('keep')
     expect(s.concessionDouble).toBe(true)
     expect(s.worldGold).toBe(false)
+    expect(s.localMode).toBe(false)
     expect(s.hasPassword).toBe(false)
     expect(s.config.points).toEqual({
       foul: 1,
@@ -458,6 +460,16 @@ describe('replay and undo', () => {
     const replayed = replay(initial, events)
     expect(replayed.players.every((p) => p.score === 0)).toBe(true)
     expect(replayed.seq).toBe(2)
+  })
+
+  it('commitAction 本地提交并撤销', () => {
+    const initial = three()
+    const win = commitAction(initial, initial, [], { kind: 'win', winType: 'normal' }, 2, 'e1')
+    expect(win.state.players.find((p) => p.name === '张三')?.score).toBe(4)
+    expect(win.event.id).toBe('e1')
+    const undone = commitAction(initial, win.state, [win.event], { kind: 'undo' }, 3, 'e2')
+    expect(undone.state.players.every((p) => p.score === 0)).toBe(true)
+    expect(undone.state.seq).toBe(2)
   })
 })
 

@@ -52,6 +52,17 @@
     </div>
 
     <div class="field">
+      <label>本地模式</label>
+      <div class="segment">
+        <button :class="{ active: localMode }" @click="localMode = true">开启</button>
+        <button :class="{ active: !localMode }" @click="localMode = false">关闭</button>
+      </div>
+      <p class="muted sweep-hint">
+        开启后只在本机记分，不走实时联网，弱网也不会卡。有网时会自动上传备份；不要用短码让另一部手机一起记。
+      </p>
+    </div>
+
+    <div class="field">
       <label>房间密码（可选）</label>
       <input
         v-model="roomPassword"
@@ -124,6 +135,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { DEFAULT_POINTS, RACE_PRESETS, type SweepOrder } from '@engine'
 import { createMatch } from '../api.ts'
+import { flushLocalMatch, makeMatchCode, newMatchId, startLocalMatch } from '../localMatch.ts'
 
 type Kind = 'chase2' | 'chase3' | 'eight'
 
@@ -139,6 +151,7 @@ const racePresets = RACE_PRESETS
 const sweepOrder = ref<SweepOrder>('keep')
 const concessionDouble = ref(true)
 const worldGold = ref(false)
+const localMode = ref(false)
 const roomPassword = ref('')
 
 const pointFields = [
@@ -171,6 +184,25 @@ async function submit() {
   busy.value = true
   try {
     const eight = kind.value === 'eight'
+    const password = roomPassword.value.trim() || undefined
+    if (localMode.value) {
+      const record = startLocalMatch({
+        id: newMatchId(),
+        code: makeMatchCode(),
+        names: filled.value,
+        config: eight ? undefined : { points: { ...points } },
+        mode: eight ? 'eight' : 'chase',
+        raceTo: eight ? Number(raceTo.value) : undefined,
+        sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
+        concessionDouble: eight ? undefined : concessionDouble.value,
+        worldGold: eight ? undefined : worldGold.value,
+        hasPassword: Boolean(password),
+        password,
+      })
+      void flushLocalMatch(record.state.code)
+      router.replace(`/m/${record.state.code}`)
+      return
+    }
     const { state } = await createMatch({
       names: filled.value,
       points: eight ? undefined : { ...points },
@@ -179,7 +211,7 @@ async function submit() {
       sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
       concessionDouble: eight ? undefined : concessionDouble.value,
       worldGold: eight ? undefined : worldGold.value,
-      password: roomPassword.value.trim() || undefined,
+      password,
     })
     router.replace(`/m/${state.code}`)
   } catch (err) {

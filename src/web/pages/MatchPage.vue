@@ -4,7 +4,7 @@
       <button class="btn btn-ghost" @click="$router.push('/')">大厅</button>
       <div class="center">
         <div class="code">{{ code }}</div>
-        <p class="sub">{{ connected ? '实时同步中' : '正在恢复连接…' }}</p>
+        <p class="sub">{{ statusText }}</p>
       </div>
       <button class="btn btn-ghost" @click="shareOpen = true">分享</button>
     </header>
@@ -166,9 +166,11 @@
       <h3>分享本场</h3>
       <p class="confirm-copy">
         {{
-          state?.hasPassword
-            ? '把短码和房间密码一起发给别人，用另一部手机打开后输入密码就能一起记分。'
-            : '把短码发给别人，用另一部手机打开就能一起记分。'
+          localMode
+            ? '本场是本地记分，只有这部手机即时改分。有网后会自动上传；别人用短码看到的是上传后的分数。'
+            : state?.hasPassword
+              ? '把短码和房间密码一起发给别人，用另一部手机打开后输入密码就能一起记分。'
+              : '把短码发给别人，用另一部手机打开就能一起记分。'
         }}
       </p>
       <div class="share-code">{{ code }}</div>
@@ -199,11 +201,24 @@ import PlayerBoard from '../components/PlayerBoard.vue'
 import Sheet from '../components/Sheet.vue'
 import { ApiError, NetworkError, postAction } from '../api.ts'
 import { useMatchSync } from '../composables/useMatchSync.ts'
+import { commitLocal } from '../localMatch.ts'
 import { useWakeLock } from '../composables/useWakeLock.ts'
 
 const route = useRoute()
 const code = computed(() => String(route.params.code).toUpperCase())
-const { state, events, connected, error, locked, reload, applyRecord, unlock } = useMatchSync(code)
+const {
+  state,
+  events,
+  connected,
+  error,
+  locked,
+  localMode,
+  pendingSync,
+  reload,
+  applyRecord,
+  unlock,
+  flush,
+} = useMatchSync(code)
 useWakeLock()
 
 const selectedId = ref('')
@@ -232,6 +247,10 @@ watch(
 
 const visibleEvents = computed(() => [...events.value].reverse().slice(0, 20))
 const isEight = computed(() => !!state.value && isEightMode(state.value))
+const statusText = computed(() => {
+  if (localMode.value) return pendingSync.value ? '本地记分 · 待上传' : '本地记分 · 已同步'
+  return connected.value ? '实时同步中' : '正在恢复连接…'
+})
 const endedText = computed(() => {
   if (!state.value) return '本场已结束'
   if (!isEight.value) return '本场已结束'
@@ -292,6 +311,31 @@ function vibrate() {
 
 async function run(action: Action) {
   if (!state.value || busy.value) return
+  if (localMode.value) {
+    const token = ++busyToken
+    busy.value = true
+    try {
+      const rec = commitLocal(code.value, action)
+      applyRecord(rec)
+      error.value = ''
+      selectedId.value =
+        action.kind === 'adjustScore' && action.playerId
+          ? action.playerId
+          : currentShooter(hydrateState(rec.state)).id
+      vibrate()
+      if (action.kind === 'adjustScore') {
+        const last = rec.events.at(-1)
+        showNotice(last?.summary ?? '已按协商改分')
+      }
+      void flush()
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '操作失败'
+    } finally {
+      if (busyToken === token) busy.value = false
+      pendingWin.value = null
+    }
+    return
+  }
   const token = ++busyToken
   busy.value = true
   const watch = window.setTimeout(() => {

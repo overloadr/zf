@@ -37,7 +37,7 @@
         :to="`/m/${m.code}`"
       >
         <div>
-          <div class="code">{{ m.code }}{{ m.hasPassword ? ' · 锁' : '' }}</div>
+            <div class="code">{{ m.code }}{{ m.hasPassword ? ' · 锁' : '' }}{{ m.localMode ? ' · 本地' : '' }}</div>
           <div class="names">{{ m.players.map((p) => p.name).join(' · ') }}</div>
         </div>
         <div class="muted">{{ matchKindLabel(m) }}</div>
@@ -51,14 +51,22 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { matchKindLabel, type MatchState } from '@engine'
 import { listMatches } from '../api.ts'
+import { flushLocalMatch, listLocal, mergeMatchLists, pendingSync } from '../localMatch.ts'
 
 const router = useRouter()
 const live = ref<MatchState[]>([])
 const code = ref('')
 
 onMounted(async () => {
-  const data = await listMatches('live')
-  live.value = data.matches
+  for (const rec of listLocal()) {
+    if (pendingSync(rec)) void flushLocalMatch(rec.state.code)
+  }
+  try {
+    const data = await listMatches('live')
+    live.value = mergeMatchLists(data.matches, 'live')
+  } catch {
+    live.value = mergeMatchLists([], 'live')
+  }
 })
 
 function join() {

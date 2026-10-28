@@ -8,6 +8,7 @@ export {
   previewWin,
   roundAmount,
 } from './apply.ts'
+export { commitAction, newEventId } from './commit.ts'
 export { DEFAULT_CONFIG, DEFAULT_POINTS, DEFAULT_RACE_TO, EIGHT_WIN_TYPES, RACE_PRESETS, SWEEP_ORDERS, WIN_TYPES, concessionDoubleEnabled, isEightMode, isEightWinType, mergeConfig, normalizeRaceTo, normalizeSweepOrder, RuleError, worldGoldEnabled } from './config.ts'
 export {
   CUE_LABELS,

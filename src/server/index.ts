@@ -10,6 +10,7 @@ import {
   computeMatchStats,
   RuleError,
   type Action,
+  type MatchEvent,
 } from '../engine/index.ts'
 import { AuthError, loadAppConfig, verifyAdmin } from './app-config.ts'
 import { openDatabase } from './db.ts'
@@ -57,6 +58,9 @@ async function main() {
       sweepOrder?: 'keep' | 'rotate' | 'random'
       concessionDouble?: boolean
       worldGold?: boolean
+      localMode?: boolean
+      id?: string
+      code?: string
       password?: string
     }
     try {
@@ -68,6 +72,9 @@ async function main() {
         sweepOrder: body.sweepOrder,
         concessionDouble: body.concessionDouble,
         worldGold: body.worldGold,
+        localMode: body.localMode,
+        id: body.localMode ? body.id : undefined,
+        code: body.localMode ? body.code : undefined,
         password: body.password,
       })
       return reply.code(201).send({ state })
@@ -123,6 +130,19 @@ async function main() {
         records.map((r) => ({ state: r.state, events: r.events })),
       ),
       matchCount: records.length,
+    }
+  })
+
+  app.post('/api/matches/:code/sync', async (req, reply) => {
+    const { code } = req.params as { code: string }
+    const body = req.body as { events?: MatchEvent[]; password?: string }
+    try {
+      store.assertAccess(code, readRoomPassword(req) || body.password)
+      const record = store.syncLocal(code, body.events ?? [])
+      hub.broadcast(record.state.code, record)
+      return record
+    } catch (err) {
+      return sendError(reply, err)
     }
   })
 

@@ -58,6 +58,7 @@ export interface MatchState {
   concessionFromId: string | null
   concessionDouble?: boolean
   worldGold?: boolean
+  localMode?: boolean
   hasPassword?: boolean
   status: MatchStatus
   config: RuleConfig
