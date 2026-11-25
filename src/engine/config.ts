@@ -30,6 +30,8 @@ export const EIGHT_WIN_TYPES = ['normal', 'clear', 'breakClear'] as const
 
 export const DEFAULT_RACE_TO = 7
 export const RACE_PRESETS = [5, 7, 9, 11, 13] as const
+export const RACK_LIMIT_PRESETS = [10, 20, 30, 50] as const
+export const TIME_LIMIT_PRESETS = [30, 45, 60, 90] as const
 export const SWEEP_ORDERS = ['keep', 'rotate', 'random'] as const
 
 export function normalizeSweepOrder(value?: string): SweepOrder {
@@ -59,6 +61,49 @@ export function normalizeRaceTo(value?: number): number {
     throw new RuleError('抢局数须为 1 到 99 的整数')
   }
   return n
+}
+
+function optionalInt(value: unknown, min: number, max: number, label: string, strict: boolean): number | undefined {
+  if (value == null || value === '' || value === false) return undefined
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n === 0) return undefined
+  if (n < min || n > max) {
+    if (!strict) return undefined
+    throw new RuleError(`${label}须为 ${min} 到 ${max} 的整数`)
+  }
+  return n
+}
+
+export function normalizeRackLimit(value?: number, strict = true): number | undefined {
+  return optionalInt(value, 1, 99, '局数', strict)
+}
+
+export function normalizeTimeLimitMin(value?: number, strict = true): number | undefined {
+  return optionalInt(value, 1, 600, '倒计时（分钟）', strict)
+}
+
+export function chaseEndsAt(state: { createdAt: number; timeLimitMin?: number }): number | undefined {
+  if (!state.timeLimitMin) return undefined
+  return state.createdAt + state.timeLimitMin * 60_000
+}
+
+export function chaseRemainingMs(
+  state: { createdAt: number; timeLimitMin?: number },
+  now = Date.now(),
+): number | undefined {
+  const endsAt = chaseEndsAt(state)
+  if (endsAt == null) return undefined
+  return endsAt - now
+}
+
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const mm = String(m).padStart(2, '0')
+  const ss = String(s).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
 type LegacyConfig = Partial<RuleConfig> & {

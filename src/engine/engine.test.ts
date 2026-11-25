@@ -48,6 +48,9 @@ describe('createMatchState', () => {
     expect(s.concessionDouble).toBe(true)
     expect(s.worldGold).toBe(false)
     expect(s.localMode).toBe(false)
+    expect(s.rackLimit).toBeUndefined()
+    expect(s.timeLimitMin).toBeUndefined()
+    expect(s.rackCount).toBe(0)
     expect(s.hasPassword).toBe(false)
     expect(s.config.points).toEqual({
       foul: 1,
@@ -547,6 +550,39 @@ describe('stats', () => {
     expect(yi.currentLoseStreak).toBe(3)
     expect(yi.maxLoseStreak).toBe(3)
     expect(yi.currentWinStreak).toBe(0)
+  })
+})
+
+describe('chase limits', () => {
+  it('打满局数自动结束', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['甲', '乙'],
+      rackLimit: 2,
+      now: 1,
+    })
+    expect(s0.rackLimit).toBe(2)
+    const first = applyAction(s0, { kind: 'win', winType: 'normal' }, 2)
+    expect(first.state.rackCount).toBe(1)
+    expect(first.state.status).toBe('live')
+    const second = applyAction(first.state, { kind: 'win', winType: 'normal' }, 3)
+    expect(second.state.rackCount).toBe(2)
+    expect(second.state.status).toBe('ended')
+  })
+
+  it('时间到结束文案', () => {
+    const s0 = createMatchState({
+      id: 'm1',
+      code: 'ABCD',
+      names: ['甲', '乙'],
+      timeLimitMin: 1,
+      now: 1,
+    })
+    expect(s0.timeLimitMin).toBe(1)
+    const ended = applyAction(s0, { kind: 'endMatch' }, 1 + 60_000)
+    expect(ended.event.summary).toBe('时间到，结束本场比赛')
+    expect(ended.state.status).toBe('ended')
   })
 })
 

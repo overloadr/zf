@@ -55,6 +55,8 @@ async function main() {
       points?: Record<string, number>
       mode?: 'chase' | 'eight'
       raceTo?: number
+      rackLimit?: number
+      timeLimitMin?: number
       sweepOrder?: 'keep' | 'rotate' | 'random'
       concessionDouble?: boolean
       worldGold?: boolean
@@ -69,6 +71,8 @@ async function main() {
         config: body.points ? { points: body.points as never } : undefined,
         mode: body.mode,
         raceTo: body.raceTo,
+        rackLimit: body.rackLimit,
+        timeLimitMin: body.timeLimitMin,
         sweepOrder: body.sweepOrder,
         concessionDouble: body.concessionDouble,
         worldGold: body.worldGold,
@@ -274,6 +278,7 @@ function sendError(reply: { code: (n: number) => { send: (b: unknown) => unknown
       error: err.message,
       state: err.record.state,
       events: err.record.events,
+      initial: err.record.initial,
     })
   }
   if (err instanceof RuleError) {

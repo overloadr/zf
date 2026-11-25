@@ -1,3 +1,4 @@
+import { chaseRemainingMs, formatClock } from './config.ts'
 import type { FoulType, MatchState, SweepOrder, WinType } from './types.ts'
 
 export const WIN_LABELS: Record<WinType, string> = {
@@ -51,9 +52,37 @@ export function seatLabel(playerCount: 2 | 3, seat: number): string {
   return ['上', '中', '下'][seat] ?? `${seat + 1}`
 }
 
-export function matchKindLabel(state: Pick<MatchState, 'mode' | 'playerCount' | 'raceTo'>): string {
+export function matchKindLabel(
+  state: Pick<MatchState, 'mode' | 'playerCount' | 'raceTo' | 'rackLimit' | 'timeLimitMin'>,
+): string {
   if (state.mode === 'eight') return `中八 · 抢${state.raceTo ?? 7}`
-  return `${state.playerCount}人追分`
+  const bits = [`${state.playerCount}人追分`]
+  if (state.rackLimit) bits.push(`${state.rackLimit}局`)
+  if (state.timeLimitMin) bits.push(`${state.timeLimitMin}分钟`)
+  return bits.join(' · ')
+}
+
+export function chaseLimitLine(
+  state: Pick<MatchState, 'mode' | 'rackLimit' | 'rackCount' | 'timeLimitMin' | 'createdAt'>,
+  now = Date.now(),
+): string {
+  if (state.mode === 'eight') return ''
+  const parts: string[] = []
+  if (state.rackLimit) parts.push(`${state.rackCount ?? 0}/${state.rackLimit} 局`)
+  const left = chaseRemainingMs(state, now)
+  if (left != null) parts.push(left <= 0 ? '时间到' : formatClock(left))
+  return parts.join(' · ')
+}
+
+export function chaseEndedText(
+  state: Pick<MatchState, 'mode' | 'rackLimit' | 'rackCount' | 'timeLimitMin' | 'createdAt'>,
+  now = Date.now(),
+): string {
+  if (state.mode === 'eight') return '本场已结束'
+  if (state.rackLimit && (state.rackCount ?? 0) >= state.rackLimit) return `已打满 ${state.rackLimit} 局`
+  const left = chaseRemainingMs(state, now)
+  if (left != null && left <= 0) return '时间到，本场已结束'
+  return '本场已结束'
 }
 
 export const SWEEP_ORDER_LABELS: Record<SweepOrder, string> = {

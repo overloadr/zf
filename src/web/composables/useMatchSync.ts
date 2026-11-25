@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'
 import type { MatchEvent, MatchState } from '@engine'
 import { ApiError, getMatch } from '../api.ts'
-import { flushLocalMatch, loadLocal, pendingSync as isPendingSync } from '../localMatch.ts'
+import { adoptServerRecord, flushLocalMatch, loadLocal, pendingSync as isPendingSync } from '../localMatch.ts'
 import { pingHealth } from '../net.ts'
 import { clearRoomPassword, getRoomPassword, setRoomPassword } from '../roomAccess.ts'
 import { usePageResume } from './usePageResume.ts'
@@ -36,8 +36,8 @@ export function useMatchSync(code: Ref<string>) {
   let backoff = MIN_BACKOFF_MS
   let lastAlive = 0
 
-  function applyRecord(record: { state?: MatchState; events?: MatchEvent[] }) {
-    if (record.state && applyIfNewer(state.value, record.state)) {
+  function applyRecord(record: { state?: MatchState; events?: MatchEvent[] }, force = false) {
+    if (record.state && (force || applyIfNewer(state.value, record.state))) {
       state.value = record.state
       if (record.state.localMode && loadLocal(code.value)) localMode.value = true
       if (record.events) events.value = record.events
@@ -55,14 +55,22 @@ export function useMatchSync(code: Ref<string>) {
     if (!localMode.value) return
     await flushLocalMatch(code.value)
     const rec = loadLocal(code.value)
-    if (rec) applyRecord({ state: rec.state, events: rec.events })
+    if (rec) applyRecord({ state: rec.state, events: rec.events }, true)
     refreshPending()
+  }
+
+  function bootLocal(record: { initial: MatchState; state: MatchState; events: MatchEvent[] }) {
+    const rec = adoptServerRecord(record)
+    localMode.value = true
+    applyRecord({ state: rec.state, events: rec.events }, true)
+    refreshPending()
+    return rec
   }
 
   async function load() {
     if (localMode.value) {
       const rec = loadLocal(code.value)
-      if (rec) applyRecord({ state: rec.state, events: rec.events })
+      if (rec) applyRecord({ state: rec.state, events: rec.events }, true)
       refreshPending()
       void flush()
       return rec
@@ -70,6 +78,10 @@ export function useMatchSync(code: Ref<string>) {
     try {
       const record = await getMatch(code.value)
       locked.value = false
+      if (record.state.localMode) {
+        bootLocal(record)
+        return record
+      }
       applyRecord(record)
       return record
     } catch (err) {
@@ -92,7 +104,7 @@ export function useMatchSync(code: Ref<string>) {
       clearRoomPassword(code.value)
       throw err
     }
-    connect()
+    if (!localMode.value) connect()
   }
 
   function stopTimers() {
@@ -279,7 +291,7 @@ export function useMatchSync(code: Ref<string>) {
     }
     try {
       await load()
-      connect()
+      if (!localMode.value) connect()
     } catch (err) {
       if (err instanceof ApiError && err.needPassword) {
         locked.value = true

@@ -1,11 +1,14 @@
 import {
   DEFAULT_RACE_TO,
+  chaseEndsAt,
   concessionDoubleEnabled,
   isEightMode,
   isEightWinType,
   mergeConfig,
   normalizeRaceTo,
+  normalizeRackLimit,
   normalizeSweepOrder,
+  normalizeTimeLimitMin,
   RuleError,
   worldGoldEnabled,
 } from './config.ts'
@@ -69,6 +72,8 @@ export function createMatchState(opts: {
   config?: Parameters<typeof mergeConfig>[0]
   mode?: MatchMode
   raceTo?: number
+  rackLimit?: number
+  timeLimitMin?: number
   sweepOrder?: SweepOrder
   concessionDouble?: boolean
   worldGold?: boolean
@@ -95,6 +100,8 @@ export function createMatchState(opts: {
     seat,
   }))
   const raceTo = mode === 'eight' ? normalizeRaceTo(opts.raceTo ?? DEFAULT_RACE_TO) : undefined
+  const rackLimit = mode === 'chase' ? normalizeRackLimit(opts.rackLimit) : undefined
+  const timeLimitMin = mode === 'chase' ? normalizeTimeLimitMin(opts.timeLimitMin) : undefined
   const sweepOrder =
     mode === 'chase' && count === 3 ? normalizeSweepOrder(opts.sweepOrder) : undefined
   const concessionDouble = mode === 'chase' ? opts.concessionDouble !== false : undefined
@@ -116,6 +123,9 @@ export function createMatchState(opts: {
     status: 'live',
     config: mergeConfig(opts.config),
     raceTo,
+    rackLimit,
+    rackCount: mode === 'chase' ? 0 : undefined,
+    timeLimitMin,
     sweepOrder,
     createdAt: now,
     updatedAt: now,
@@ -138,6 +148,10 @@ export function hydrateState(state: MatchState): MatchState {
   const mode: MatchMode = state.mode === 'eight' ? 'eight' : 'chase'
   const raceTo =
     mode === 'eight' ? normalizeRaceTo(state.raceTo ?? DEFAULT_RACE_TO) : undefined
+  const rackLimit = mode === 'chase' ? normalizeRackLimit(state.rackLimit, false) : undefined
+  const timeLimitMin = mode === 'chase' ? normalizeTimeLimitMin(state.timeLimitMin, false) : undefined
+  const rackCount =
+    mode === 'chase' ? Math.max(0, Math.floor(Number(state.rackCount) || 0)) : undefined
   const sweepOrder =
     mode === 'chase' && sorted.length === 3 ? normalizeSweepOrder(state.sweepOrder) : undefined
   const concessionDouble = mode === 'chase' ? concessionDoubleEnabled(state) : undefined
@@ -154,6 +168,9 @@ export function hydrateState(state: MatchState): MatchState {
     localMode: Boolean(state.localMode),
     hasPassword: Boolean(state.hasPassword),
     raceTo,
+    rackLimit,
+    rackCount,
+    timeLimitMin,
     sweepOrder,
   }
 }
@@ -332,6 +349,8 @@ export function applyAction(
           const orderLoser = preview.concession ? preview.loserId : shang.id
           next.shotOrder = orderAfterWin(before, preview.winnerId, orderLoser)
         }
+        next.rackCount = (next.rackCount ?? 0) + 1
+        if (next.rackLimit && next.rackCount >= next.rackLimit) next.status = 'ended'
       }
       next.currentIndex = 0
       next.concessionActive = false
@@ -454,13 +473,20 @@ export function applyAction(
       next.status = 'ended'
       next.concessionActive = false
       next.concessionFromId = null
+      const endsAt = chaseEndsAt(next)
+      const timedOut = endsAt != null && now >= endsAt
+      const racksFull = Boolean(next.rackLimit && (next.rackCount ?? 0) >= next.rackLimit)
       return {
         state: next,
         event: {
           seq: next.seq,
           at: now,
           action,
-          summary: '结束本场比赛',
+          summary: timedOut
+            ? '时间到，结束本场比赛'
+            : racksFull
+              ? '打满局数，结束本场比赛'
+              : '结束本场比赛',
         },
       }
     }

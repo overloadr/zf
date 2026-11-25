@@ -114,7 +114,11 @@ onMounted(() => {
 const eight = computed(() => stats.value?.mode === 'eight')
 const kindLine = computed(() => {
   if (!stats.value) return ''
-  return stats.value.mode === 'eight' ? `中八 抢${stats.value.raceTo ?? 7}` : '追分'
+  if (stats.value.mode === 'eight') return `中八 抢${stats.value.raceTo ?? 7}`
+  const bits = ['追分']
+  if (stats.value.rackLimit) bits.push(`${stats.value.rackLimit}局`)
+  if (stats.value.timeLimitMin) bits.push(`${stats.value.timeLimitMin}分钟`)
+  return bits.join(' · ')
 })
 
 function displayScore(n: number) {

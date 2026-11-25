@@ -5,6 +5,7 @@
       <div class="center">
         <div class="code">{{ code }}</div>
         <p class="sub">{{ statusText }}</p>
+        <p v-if="limitLine" class="limit-line" :class="{ urgent: timeUrgent }">{{ limitLine }}</p>
       </div>
       <button class="btn btn-ghost" @click="shareOpen = true">分享</button>
     </header>
@@ -167,7 +168,7 @@
       <p class="confirm-copy">
         {{
           localMode
-            ? '本场是本地记分，只有这部手机即时改分。有网后会自动上传；别人用短码看到的是上传后的分数。'
+            ? '本场本地记分，这部手机即时改分。换手机用短码打开也能继续记；两边尽量不要同时改。'
             : state?.hasPassword
               ? '把短码和房间密码一起发给别人，用另一部手机打开后输入密码就能一起记分。'
               : '把短码发给别人，用另一部手机打开就能一起记分。'
@@ -182,9 +183,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
+  chaseEndedText,
+  chaseLimitLine,
+  chaseRemainingMs,
   currentShooter,
   hydrateState,
   formatAmount,
@@ -245,15 +249,38 @@ watch(
   },
 )
 
+const nowTick = ref(Date.now())
+let clockTimer: number | undefined
+let endingByClock = false
+let clockEndArmed = true
+
+onMounted(() => {
+  clockTimer = window.setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
+})
+onUnmounted(() => {
+  if (clockTimer) window.clearInterval(clockTimer)
+})
+
 const visibleEvents = computed(() => [...events.value].reverse().slice(0, 20))
 const isEight = computed(() => !!state.value && isEightMode(state.value))
 const statusText = computed(() => {
   if (localMode.value) return pendingSync.value ? '本地记分 · 待上传' : '本地记分 · 已同步'
   return connected.value ? '实时同步中' : '正在恢复连接…'
 })
+const remainingMs = computed(() => {
+  if (!state.value || isEight.value) return undefined
+  return chaseRemainingMs(state.value, nowTick.value)
+})
+const limitLine = computed(() => {
+  if (!state.value || isEight.value) return ''
+  return chaseLimitLine(state.value, nowTick.value)
+})
+const timeUrgent = computed(() => remainingMs.value != null && remainingMs.value <= 60_000)
 const endedText = computed(() => {
   if (!state.value) return '本场已结束'
-  if (!isEight.value) return '本场已结束'
+  if (!isEight.value) return chaseEndedText(state.value, nowTick.value)
   const [a, b] = state.value.players
   if (!a || !b) return '本场已结束'
   const leader = a.score >= b.score ? a : b
@@ -262,6 +289,28 @@ const endedText = computed(() => {
     return `${leader.name} ${leader.score}-${other.score} 获胜`
   }
   return '本场已结束'
+})
+
+watch(remainingMs, (left) => {
+  if (left != null && left > 0) {
+    clockEndArmed = true
+    return
+  }
+  if (
+    !clockEndArmed ||
+    !state.value ||
+    state.value.status !== 'live' ||
+    left == null ||
+    endingByClock ||
+    busy.value
+  ) {
+    return
+  }
+  clockEndArmed = false
+  endingByClock = true
+  void run({ kind: 'endMatch' }).finally(() => {
+    endingByClock = false
+  })
 })
 
 const hintText = computed(() => {
@@ -480,7 +529,7 @@ async function copyLink() {
     return
   }
   shareOpen.value = false
-  showNotice('链接已复制，发给别人就能一起记分')
+  showNotice(localMode.value ? '链接已复制，换手机打开也能继续记' : '链接已复制，发给别人就能一起记分')
 }
 
 function time(at: number) {
@@ -602,5 +651,15 @@ h3 { margin: 4px 0 12px; }
   background: var(--gold);
   color: #1b1404;
   font-weight: 700;
+}
+.limit-line {
+  margin: 2px 0 0;
+  color: var(--gold);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.limit-line.urgent {
+  color: #ff8b6b;
 }
 </style>

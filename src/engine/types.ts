@@ -63,6 +63,9 @@ export interface MatchState {
   status: MatchStatus
   config: RuleConfig
   raceTo?: number
+  rackLimit?: number
+  rackCount?: number
+  timeLimitMin?: number
   sweepOrder?: SweepOrder
   createdAt: number
   updatedAt: number
@@ -147,6 +150,8 @@ export interface MatchStats {
   racks: number
   mode: MatchMode
   raceTo?: number
+  rackLimit?: number
+  timeLimitMin?: number
   players: PlayerStats[]
 }
 

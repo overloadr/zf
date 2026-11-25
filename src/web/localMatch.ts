@@ -5,7 +5,7 @@ import {
   type MatchEvent,
   type MatchState,
 } from '@engine'
-import { createMatch, syncMatch } from './api.ts'
+import { ApiError, createMatch, getMatch, syncMatch } from './api.ts'
 import { setRoomPassword } from './roomAccess.ts'
 
 const PREFIX = 'zf:local:'
@@ -19,6 +19,65 @@ export interface LocalRecord {
   syncedSeq: number
   registered: boolean
   password?: string
+}
+
+export type ServerRecord = {
+  initial: MatchState
+  state: MatchState
+  events: MatchEvent[]
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function eventAt(events: MatchEvent[], seq: number) {
+  return events.find((event) => event.seq === seq)
+}
+
+export function eventsAlign(localEvents: MatchEvent[], serverEvents: MatchEvent[], upToSeq: number): boolean {
+  for (let seq = 1; seq <= upToSeq; seq++) {
+    const local = eventAt(localEvents, seq)
+    const server = eventAt(serverEvents, seq)
+    if (!local || !server || local.id !== server.id) return false
+  }
+  return true
+}
+
+export function recordFromServer(server: ServerRecord, password?: string): LocalRecord {
+  return {
+    initial: clone(server.initial),
+    state: clone(server.state),
+    events: clone(server.events),
+    syncedSeq: server.state.seq,
+    registered: true,
+    password,
+  }
+}
+
+export function mergeServerIntoLocal(
+  local: LocalRecord,
+  server: ServerRecord,
+): { record: LocalRecord; replaced: boolean } {
+  if (server.state.seq > local.state.seq) {
+    return { record: recordFromServer(server, local.password), replaced: true }
+  }
+  if (server.state.seq > local.syncedSeq && !eventsAlign(local.events, server.events, server.state.seq)) {
+    return { record: recordFromServer(server, local.password), replaced: true }
+  }
+  if (server.state.seq === local.state.seq && !eventsAlign(local.events, server.events, server.state.seq)) {
+    return { record: recordFromServer(server, local.password), replaced: true }
+  }
+  if (server.state.seq > local.syncedSeq) {
+    local.syncedSeq = server.state.seq
+  }
+  return { record: local, replaced: false }
+}
+
+export function adoptServerRecord(server: ServerRecord, password?: string): LocalRecord {
+  const record = recordFromServer(server, password)
+  saveLocal(record)
+  return record
 }
 
 const inflight = new Map<string, Promise<void>>()
@@ -124,6 +183,8 @@ function createBody(record: LocalRecord) {
     points: initial.mode === 'eight' ? undefined : { ...initial.config.points },
     mode: initial.mode,
     raceTo: initial.raceTo,
+    rackLimit: initial.rackLimit,
+    timeLimitMin: initial.timeLimitMin,
     sweepOrder: initial.sweepOrder,
     concessionDouble: initial.concessionDouble,
     worldGold: initial.worldGold,
@@ -131,6 +192,44 @@ function createBody(record: LocalRecord) {
     id: initial.id,
     code: initial.code,
     password: record.password,
+  }
+}
+
+async function pullServer(code: string): Promise<void> {
+  const local = loadLocal(code)
+  if (!local?.registered) return
+  const server = await getMatch(local.state.code)
+  const { record } = mergeServerIntoLocal(local, server)
+  saveLocal(record)
+}
+
+async function pushPending(code: string): Promise<void> {
+  const record = loadLocal(code)
+  if (!record) return
+  if (record.syncedSeq >= record.state.seq) return
+  const events = record.events.filter((e) => e.seq > record.syncedSeq)
+  if (events.length === 0) {
+    record.syncedSeq = record.state.seq
+    saveLocal(record)
+    return
+  }
+  try {
+    const synced = await syncMatch(record.state.code, events)
+    const latest = loadLocal(code) ?? record
+    latest.syncedSeq = synced.state.seq
+    saveLocal(latest)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409 && err.state && err.events) {
+      const latest = loadLocal(code) ?? record
+      saveLocal(
+        recordFromServer(
+          { initial: latest.initial, state: err.state, events: err.events },
+          latest.password,
+        ),
+      )
+      return
+    }
+    throw err
   }
 }
 
@@ -151,16 +250,12 @@ async function flushOnce(code: string): Promise<void> {
     record.registered = true
     saveLocal(record)
   }
-  if (record.syncedSeq >= record.state.seq) return
-  const events = record.events.filter((e) => e.seq > record.syncedSeq)
-  if (events.length === 0) {
-    record.syncedSeq = record.state.seq
-    saveLocal(record)
-    return
+  try {
+    await pullServer(code)
+  } catch {
+    /* offline: still try to push */
   }
-  const synced = await syncMatch(record.state.code, events)
-  record.syncedSeq = synced.state.seq
-  saveLocal(record)
+  await pushPending(code)
 }
 
 export function flushLocalMatch(code: string): Promise<void> {

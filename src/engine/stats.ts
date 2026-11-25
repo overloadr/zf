@@ -108,6 +108,8 @@ export function computeMatchStats(state: MatchState, events: MatchEvent[]): Matc
     racks,
     mode: state.mode === 'eight' ? 'eight' : 'chase',
     raceTo: state.raceTo,
+    rackLimit: state.rackLimit,
+    timeLimitMin: state.timeLimitMin,
     players: state.players.map((p) => byId.get(p.id)!),
   }
 }

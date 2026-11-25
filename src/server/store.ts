@@ -128,6 +128,8 @@ export class MatchStore {
     config?: Parameters<typeof createMatchState>[0]['config']
     mode?: Parameters<typeof createMatchState>[0]['mode']
     raceTo?: number
+    rackLimit?: number
+    timeLimitMin?: number
     sweepOrder?: Parameters<typeof createMatchState>[0]['sweepOrder']
     concessionDouble?: boolean
     worldGold?: boolean
@@ -162,6 +164,8 @@ export class MatchStore {
       config: input.config,
       mode: input.mode,
       raceTo: input.raceTo,
+      rackLimit: input.rackLimit,
+      timeLimitMin: input.timeLimitMin,
       sweepOrder: input.sweepOrder,
       concessionDouble: input.concessionDouble,
       worldGold: input.worldGold,
@@ -207,7 +211,7 @@ export class MatchStore {
       const current = this.getByCode(code)
       if (!current) throw new RuleError('找不到这场比赛')
       if (current.state.localMode) {
-        throw new RuleError('本场为本地记分，请在原手机继续，有网后会自动上传')
+        throw new RuleError('本场为本地记分，请用短码在本机继续，有网后会自动同步')
       }
       if (expectedSeq !== undefined && expectedSeq !== current.state.seq) {
         throw new ConflictError('比分已被其他设备更新，请核对后再记', current)

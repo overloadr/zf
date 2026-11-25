@@ -41,6 +41,48 @@
     </div>
 
     <div v-if="kind !== 'eight'" class="field">
+      <label>局数</label>
+      <div class="segment race">
+        <button :class="{ active: !rackLimit }" @click="rackLimit = 0">不限</button>
+        <button
+          v-for="n in rackPresets"
+          :key="n"
+          :class="{ active: rackLimit === n }"
+          @click="rackLimit = n"
+        >
+          {{ n }}
+        </button>
+      </div>
+      <p class="muted sweep-hint">打满所选局数后自动结束。不限则一直记到手动结束。</p>
+    </div>
+
+    <div v-if="kind !== 'eight' && rackLimit" class="field">
+      <label>自定义局数</label>
+      <input v-model.number="rackLimit" type="number" min="1" max="99" step="1" />
+    </div>
+
+    <div v-if="kind !== 'eight'" class="field">
+      <label>倒计时</label>
+      <div class="segment race">
+        <button :class="{ active: !timeLimitMin }" @click="timeLimitMin = 0">不限</button>
+        <button
+          v-for="n in timePresets"
+          :key="n"
+          :class="{ active: timeLimitMin === n }"
+          @click="timeLimitMin = n"
+        >
+          {{ n }}分
+        </button>
+      </div>
+      <p class="muted sweep-hint">从开局开始倒计时，时间到自动结束。不限则不计时。</p>
+    </div>
+
+    <div v-if="kind !== 'eight' && timeLimitMin" class="field">
+      <label>自定义分钟</label>
+      <input v-model.number="timeLimitMin" type="number" min="1" max="600" step="1" />
+    </div>
+
+    <div v-if="kind !== 'eight'" class="field">
       <label>全球算大金</label>
       <div class="segment">
         <button :class="{ active: worldGold }" @click="worldGold = true">开启</button>
@@ -58,7 +100,7 @@
         <button :class="{ active: !localMode }" @click="localMode = false">关闭</button>
       </div>
       <p class="muted sweep-hint">
-        开启后只在本机记分，不走实时联网，弱网也不会卡。有网时会自动上传备份；不要用短码让另一部手机一起记。
+        开启后本机即时记分，不走实时联网，弱网也不会卡。有网时会自动上传；换手机用短码打开也能继续记，两边尽量不要同时改。
       </p>
     </div>
 
@@ -133,7 +175,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { DEFAULT_POINTS, RACE_PRESETS, type SweepOrder } from '@engine'
+import { DEFAULT_POINTS, RACE_PRESETS, RACK_LIMIT_PRESETS, TIME_LIMIT_PRESETS, type SweepOrder } from '@engine'
 import { createMatch } from '../api.ts'
 import { flushLocalMatch, makeMatchCode, newMatchId, startLocalMatch } from '../localMatch.ts'
 
@@ -148,6 +190,10 @@ const error = ref('')
 const points = reactive({ ...DEFAULT_POINTS })
 const raceTo = ref(7)
 const racePresets = RACE_PRESETS
+const rackLimit = ref(0)
+const rackPresets = RACK_LIMIT_PRESETS
+const timeLimitMin = ref(0)
+const timePresets = TIME_LIMIT_PRESETS
 const sweepOrder = ref<SweepOrder>('keep')
 const concessionDouble = ref(true)
 const worldGold = ref(false)
@@ -193,6 +239,8 @@ async function submit() {
         config: eight ? undefined : { points: { ...points } },
         mode: eight ? 'eight' : 'chase',
         raceTo: eight ? Number(raceTo.value) : undefined,
+        rackLimit: eight ? undefined : rackLimit.value || undefined,
+        timeLimitMin: eight ? undefined : timeLimitMin.value || undefined,
         sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
         concessionDouble: eight ? undefined : concessionDouble.value,
         worldGold: eight ? undefined : worldGold.value,
@@ -208,6 +256,8 @@ async function submit() {
       points: eight ? undefined : { ...points },
       mode: eight ? 'eight' : 'chase',
       raceTo: eight ? Number(raceTo.value) : undefined,
+      rackLimit: eight ? undefined : rackLimit.value || undefined,
+      timeLimitMin: eight ? undefined : timeLimitMin.value || undefined,
       sweepOrder: kind.value === 'chase3' ? sweepOrder.value : undefined,
       concessionDouble: eight ? undefined : concessionDouble.value,
       worldGold: eight ? undefined : worldGold.value,

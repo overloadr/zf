@@ -73,6 +73,8 @@ export async function createMatch(body: {
   points?: Record<string, number>
   mode?: 'chase' | 'eight'
   raceTo?: number
+  rackLimit?: number
+  timeLimitMin?: number
   sweepOrder?: 'keep' | 'rotate' | 'random'
   concessionDouble?: boolean
   worldGold?: boolean
